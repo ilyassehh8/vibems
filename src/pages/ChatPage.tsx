@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Send, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Send, MoreVertical, Check, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
 
@@ -21,6 +20,7 @@ const ChatPage = () => {
   const [chatName, setChatName] = useState('');
   const [isOnline, setIsOnline] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
 
   const scrollToBottom = () => {
@@ -35,7 +35,7 @@ const ChatPage = () => {
         .from('conversations')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (conv?.type === 'direct') {
         const { data: members } = await supabase
@@ -49,7 +49,7 @@ const ChatPage = () => {
             .from('profiles')
             .select('username, display_name, is_online')
             .eq('user_id', members[0].user_id)
-            .single();
+            .maybeSingle();
           setChatName(p?.display_name || p?.username || 'Chat');
           setIsOnline(p?.is_online || false);
         }
@@ -66,7 +66,6 @@ const ChatPage = () => {
         .order('created_at', { ascending: true });
 
       if (data) {
-        // Fetch sender profiles
         const senderIds = [...new Set(data.map(m => m.sender_id))];
         const { data: profiles } = await supabase
           .from('profiles')
@@ -74,7 +73,6 @@ const ChatPage = () => {
           .in('user_id', senderIds);
 
         const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-
         const enriched = data.map(m => ({
           ...m,
           sender_profile: profileMap.get(m.sender_id) || undefined,
@@ -88,7 +86,6 @@ const ChatPage = () => {
     fetchChatInfo();
     fetchMessages();
 
-    // Realtime
     const channel = supabase
       .channel(`chat-${id}`)
       .on('postgres_changes', {
@@ -102,7 +99,7 @@ const ChatPage = () => {
           .from('profiles')
           .select('user_id, username, display_name, avatar_url')
           .eq('user_id', msg.sender_id)
-          .single();
+          .maybeSingle();
 
         setMessages(prev => [...prev, { ...msg, sender_profile: p || undefined }]);
         setTimeout(scrollToBottom, 100);
@@ -130,25 +127,29 @@ const ChatPage = () => {
       setNewMessage(content);
     }
 
-    // Update conversation timestamp
     await supabase
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', id);
 
     setSending(false);
+    inputRef.current?.focus();
   };
 
-  const formatTime = (date: string) => {
-    const d = new Date(date);
-    return format(d, 'HH:mm');
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
+
+  const formatTime = (date: string) => format(new Date(date), 'HH:mm');
 
   const formatDateHeader = (date: string) => {
     const d = new Date(date);
-    if (isToday(d)) return 'Today';
-    if (isYesterday(d)) return 'Yesterday';
-    return format(d, 'MMMM d, yyyy');
+    if (isToday(d)) return 'TODAY';
+    if (isYesterday(d)) return 'YESTERDAY';
+    return format(d, 'MMMM d, yyyy').toUpperCase();
   };
 
   // Group messages by date
@@ -165,66 +166,79 @@ const ChatPage = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-3 py-3 border-b border-border bg-card">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground">
+      {/* WhatsApp-style Header */}
+      <header className="flex items-center gap-2 px-2 py-2 bg-card border-b border-border shadow-sm">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9">
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
           <div className="relative flex-shrink-0">
-            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-xs">
+            <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
               {chatName.slice(0, 2).toUpperCase()}
             </div>
             {isOnline && (
-              <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-online border-2 border-card" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-online border-2 border-card" />
             )}
           </div>
           <div className="min-w-0">
-            <h2 className="font-semibold text-foreground truncate">{chatName}</h2>
-            <p className="text-xs text-muted-foreground">
-              {isOnline ? 'Online' : 'Offline'}
+            <h2 className="font-semibold text-foreground text-[15px] truncate leading-tight">{chatName}</h2>
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              {isOnline ? 'online' : 'offline'}
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
+        <Button variant="ghost" size="icon" className="text-muted-foreground h-9 w-9">
           <MoreVertical className="w-5 h-5" />
         </Button>
       </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 scrollbar-thin">
+      {/* Messages area with wallpaper */}
+      <div className="flex-1 overflow-y-auto chat-wallpaper px-3 py-2 scrollbar-thin">
+        {groupedMessages.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <div className="bg-card/80 backdrop-blur-sm rounded-xl px-6 py-4 text-center shadow-sm">
+              <p className="text-sm text-muted-foreground">Send a message to start the conversation</p>
+            </div>
+          </div>
+        )}
         {groupedMessages.map(group => (
           <div key={group.date}>
-            <div className="flex justify-center my-4">
-              <span className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
+            <div className="flex justify-center my-3">
+              <span className="text-[11px] font-medium text-muted-foreground bg-card/80 backdrop-blur-sm px-3 py-1 rounded-lg shadow-sm">
                 {formatDateHeader(group.messages[0].created_at)}
               </span>
             </div>
             {group.messages.map((msg, i) => {
               const isMine = msg.sender_id === user?.id;
-              const showAvatar = !isMine && (i === 0 || group.messages[i - 1]?.sender_id !== msg.sender_id);
+              const isFirstInGroup = i === 0 || group.messages[i - 1]?.sender_id !== msg.sender_id;
+              const isLastInGroup = i === group.messages.length - 1 || group.messages[i + 1]?.sender_id !== msg.sender_id;
 
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-1`}
+                  className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-2' : 'mb-0.5'}`}
                 >
                   <div
-                    className={`max-w-[75%] px-4 py-2.5 ${
+                    className={`max-w-[80%] px-3 py-1.5 shadow-sm ${
                       isMine
-                        ? 'bg-chat-sent text-chat-sent-foreground rounded-2xl rounded-br-md'
-                        : 'bg-chat-received text-chat-received-foreground rounded-2xl rounded-bl-md'
+                        ? `bg-chat-sent text-chat-sent-foreground ${isLastInGroup ? 'rounded-2xl rounded-br-sm chat-bubble-tail-sent' : 'rounded-2xl'}`
+                        : `bg-chat-received text-chat-received-foreground ${isLastInGroup ? 'rounded-2xl rounded-bl-sm chat-bubble-tail-received' : 'rounded-2xl'}`
                     }`}
                   >
-                    {!isMine && showAvatar && (
-                      <p className="text-xs font-semibold text-accent mb-1">
+                    {!isMine && isFirstInGroup && (
+                      <p className="text-[11px] font-semibold text-accent mb-0.5">
                         {msg.sender_profile?.display_name || msg.sender_profile?.username}
                       </p>
                     )}
-                    <p className="text-sm leading-relaxed break-words">{msg.content}</p>
-                    <p className={`text-[10px] mt-1 ${isMine ? 'text-chat-sent-foreground/60' : 'text-chat-timestamp'} text-right`}>
-                      {formatTime(msg.created_at)}
-                    </p>
+                    <div className="flex items-end gap-2">
+                      <p className="text-[14px] leading-[1.35] break-words whitespace-pre-wrap flex-1">{msg.content}</p>
+                      <span className={`text-[10px] flex-shrink-0 flex items-center gap-0.5 translate-y-0.5 ${
+                        isMine ? 'text-chat-sent-foreground/60' : 'text-chat-timestamp'
+                      }`}>
+                        {formatTime(msg.created_at)}
+                        {isMine && <CheckCheck className="w-3.5 h-3.5 inline-block ml-0.5" />}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -234,27 +248,35 @@ const ChatPage = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-3 py-3 border-t border-border bg-card">
-        <form
-          onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-          className="flex items-center gap-2"
-        >
-          <Input
-            placeholder="Type a message..."
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            className="flex-1 h-11 rounded-full bg-secondary border-0 px-4 text-foreground placeholder:text-muted-foreground"
-          />
+      {/* WhatsApp-style Input */}
+      <div className="px-2 py-2 bg-background border-t border-border">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 bg-card rounded-3xl border border-border px-4 py-2 flex items-end min-h-[44px]">
+            <textarea
+              ref={inputRef}
+              placeholder="Message"
+              value={newMessage}
+              onChange={e => {
+                setNewMessage(e.target.value);
+                // Auto-resize
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+              }}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-[15px] resize-none outline-none leading-[1.35] max-h-[120px]"
+              style={{ height: 'auto' }}
+            />
+          </div>
           <Button
-            type="submit"
-            size="icon"
+            onClick={sendMessage}
             disabled={!newMessage.trim() || sending}
-            className="w-11 h-11 rounded-full gradient-primary text-primary-foreground shadow-md hover:opacity-90 transition-opacity flex-shrink-0"
+            size="icon"
+            className="w-11 h-11 rounded-full gradient-primary text-primary-foreground shadow-md hover:opacity-90 transition-opacity flex-shrink-0 mb-0.5"
           >
             <Send className="w-4 h-4" />
           </Button>
-        </form>
+        </div>
       </div>
     </div>
   );

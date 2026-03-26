@@ -78,7 +78,7 @@ const ChatListPage = () => {
             .from('profiles')
             .select('username, display_name, avatar_url, is_online')
             .eq('user_id', members[0].user_id)
-            .single();
+            .maybeSingle();
           item.other_user = otherProfile || undefined;
         }
       }
