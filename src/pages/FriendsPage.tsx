@@ -68,7 +68,7 @@ const FriendsPage = () => {
       .from('profiles')
       .select('*')
       .eq('username', searchUsername.toLowerCase().trim())
-      .single();
+      .maybeSingle();
 
     if (data && data.user_id !== user?.id) {
       setSearchResult(data);

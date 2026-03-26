@@ -102,7 +102,7 @@ const ChatPage = () => {
           .from('profiles')
           .select('user_id, username, display_name, avatar_url')
           .eq('user_id', msg.sender_id)
-          .single();
+          .maybeSingle();
 
         setMessages(prev => [...prev, { ...msg, sender_profile: p || undefined }]);
         setTimeout(scrollToBottom, 100);
