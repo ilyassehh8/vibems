@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .from('profiles')
       .select('user_id')
       .eq('username', username)
-      .single();
+      .maybeSingle();
 
     if (!profileData) throw new Error('Username not found');
 
