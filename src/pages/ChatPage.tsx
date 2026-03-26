@@ -49,7 +49,7 @@ const ChatPage = () => {
             .from('profiles')
             .select('username, display_name, is_online')
             .eq('user_id', members[0].user_id)
-            .single();
+            .maybeSingle();
           setChatName(p?.display_name || p?.username || 'Chat');
           setIsOnline(p?.is_online || false);
         }
