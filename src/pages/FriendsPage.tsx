@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, UserPlus, Check, X, MessageCircle, Search } from 'lucide-react';
+import { ArrowLeft, UserPlus, Check, X, MessageCircle, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -26,6 +26,7 @@ const FriendsPage = () => {
   const [friendMessage, setFriendMessage] = useState('');
   const [searchResult, setSearchResult] = useState<Profile | null>(null);
   const [searching, setSearching] = useState(false);
+  const [openingChatFor, setOpeningChatFor] = useState<string | null>(null);
 
   const fetchFriendships = async () => {
     if (!user) return;
@@ -40,10 +41,12 @@ const FriendsPage = () => {
     const userIds = data.flatMap(f => [f.requester_id, f.addressee_id]).filter(id => id !== user.id);
     const uniqueIds = [...new Set(userIds)];
 
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('user_id', uniqueIds);
+    const { data: profiles } = uniqueIds.length
+      ? await supabase
+          .from('profiles')
+          .select('*')
+          .in('user_id', uniqueIds)
+      : { data: [] as Profile[] };
 
     const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
@@ -98,7 +101,7 @@ const FriendsPage = () => {
       return;
     }
 
-    toast.success('Friend request sent! 🎉');
+    toast.success('Friend request sent!');
     setSearchResult(null);
     setSearchUsername('');
     setFriendMessage('');
@@ -106,67 +109,89 @@ const FriendsPage = () => {
   };
 
   const acceptRequest = async (friendshipId: string) => {
-    await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
-    toast.success('Friend added!');
+    const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success('Friend added');
     fetchFriendships();
   };
 
   const rejectRequest = async (friendshipId: string) => {
-    await supabase.from('friendships').delete().eq('id', friendshipId);
+    const { error } = await supabase.from('friendships').delete().eq('id', friendshipId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     fetchFriendships();
   };
 
   const startChat = async (friendUserId: string) => {
-    if (!user) return;
+    if (!user || openingChatFor) return;
 
-    // Check if direct conversation exists
-    const { data: myConvs } = await supabase
-      .from('conversation_members')
-      .select('conversation_id')
-      .eq('user_id', user.id);
+    setOpeningChatFor(friendUserId);
 
-    const { data: theirConvs } = await supabase
-      .from('conversation_members')
-      .select('conversation_id')
-      .eq('user_id', friendUserId);
+    try {
+      const [{ data: myConvs, error: myError }, { data: theirConvs, error: theirError }] = await Promise.all([
+        supabase.from('conversation_members').select('conversation_id').eq('user_id', user.id),
+        supabase.from('conversation_members').select('conversation_id').eq('user_id', friendUserId),
+      ]);
 
-    const myIds = new Set(myConvs?.map(c => c.conversation_id) || []);
-    const commonIds = theirConvs?.filter(c => myIds.has(c.conversation_id)).map(c => c.conversation_id) || [];
-
-    if (commonIds.length > 0) {
-      // Check if any are direct conversations
-      const { data: directConvs } = await supabase
-        .from('conversations')
-        .select('id')
-        .in('id', commonIds)
-        .eq('type', 'direct');
-
-      if (directConvs?.[0]) {
-        navigate(`/chat/${directConvs[0].id}`);
-        return;
+      if (myError || theirError) {
+        throw myError || theirError;
       }
-    }
 
-    // Create new conversation
-    const { data: newConv } = await supabase
-      .from('conversations')
-      .insert({ type: 'direct', created_by: user.id })
-      .select()
-      .single();
+      const myIds = new Set(myConvs?.map(c => c.conversation_id) || []);
+      const commonIds = theirConvs?.filter(c => myIds.has(c.conversation_id)).map(c => c.conversation_id) || [];
 
-    if (newConv) {
-      await supabase.from('conversation_members').insert([
+      if (commonIds.length > 0) {
+        const { data: directConvs, error: directError } = await supabase
+          .from('conversations')
+          .select('id')
+          .in('id', commonIds)
+          .eq('type', 'direct')
+          .limit(1);
+
+        if (directError) throw directError;
+
+        if (directConvs?.[0]) {
+          navigate(`/chat/${directConvs[0].id}`);
+          return;
+        }
+      }
+
+      const { data: newConv, error: conversationError } = await supabase
+        .from('conversations')
+        .insert({ type: 'direct', created_by: user.id })
+        .select('id')
+        .single();
+
+      if (conversationError || !newConv) {
+        throw conversationError || new Error('Could not create chat');
+      }
+
+      const { error: membersError } = await supabase.from('conversation_members').insert([
         { conversation_id: newConv.id, user_id: user.id, role: 'admin' },
         { conversation_id: newConv.id, user_id: friendUserId, role: 'member' },
       ]);
+
+      if (membersError) {
+        throw membersError;
+      }
+
       navigate(`/chat/${newConv.id}`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not open chat');
+    } finally {
+      setOpeningChatFor(null);
     }
   };
 
   const getInitials = (name: string) => name.slice(0, 2).toUpperCase();
 
   const tabs = [
-    { key: 'friends' as const, label: 'Friends', count: friends.length },
+    { key: 'friends' as const, label: 'Chats', count: friends.length },
     { key: 'requests' as const, label: 'Requests', count: incoming.length },
     { key: 'add' as const, label: 'Add', count: 0 },
   ];
@@ -178,7 +203,10 @@ const FriendsPage = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground">
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <h1 className="text-lg font-bold text-foreground">Friends</h1>
+        <div>
+          <h1 className="text-lg font-bold text-foreground">New chat</h1>
+          <p className="text-xs text-muted-foreground">Pick a friend to start chatting</p>
+        </div>
       </header>
 
       {/* Tabs */}
@@ -216,25 +244,31 @@ const FriendsPage = () => {
                 </Button>
               </div>
             ) : (
-              friends.map(f => (
-                <div key={f.id} className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 transition-colors">
-                  <div className="w-11 h-11 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
-                    {getInitials(f.profile.display_name || f.profile.username)}
+              friends.map(f => {
+                const isOpening = openingChatFor === f.profile.user_id;
+
+                return (
+                  <div key={f.id} className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 transition-colors border-b border-border/40">
+                    <div className="w-11 h-11 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
+                      {getInitials(f.profile.display_name || f.profile.username)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{f.profile.display_name || f.profile.username}</p>
+                      <p className="text-xs text-muted-foreground truncate">Tap the bubble to open your WhatsApp-style chat</p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      disabled={isOpening}
+                      onClick={() => startChat(f.profile.user_id)}
+                      className="rounded-full text-accent hover:text-accent h-10 w-10"
+                      aria-label={`Chat with ${f.profile.display_name || f.profile.username}`}
+                    >
+                      {isOpening ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-5 h-5" />}
+                    </Button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{f.profile.display_name || f.profile.username}</p>
-                    <p className="text-xs text-muted-foreground">@{f.profile.username}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => startChat(f.profile.user_id)}
-                    className="text-accent"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                  </Button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
