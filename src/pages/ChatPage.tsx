@@ -2,10 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Send, MoreVertical, Check, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
+import AudioRecorder from '@/components/chat/AudioRecorder';
+import AudioPlayer from '@/components/chat/AudioPlayer';
+import CallScreen from '@/components/chat/CallScreen';
 
 type Message = Tables<'messages'> & {
   sender_profile?: { username: string; display_name: string | null; avatar_url: string | null };
@@ -22,6 +25,7 @@ const ChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
+  const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; isIncoming?: boolean; callId?: string } | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -106,7 +110,21 @@ const ChatPage = () => {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Listen for incoming calls
+    const callChannel = supabase.channel(`call-signal-${id}`, {
+      config: { broadcast: { self: false } },
+    });
+    callChannel.on('broadcast', { event: 'signal' }, ({ payload }) => {
+      if (payload.from !== user.id && payload.type === 'offer' && !activeCall) {
+        setActiveCall({ type: 'audio', isIncoming: true });
+      }
+    });
+    callChannel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(callChannel);
+    };
   }, [id, user]);
 
   const sendMessage = async () => {
@@ -152,7 +170,6 @@ const ChatPage = () => {
     return format(d, 'MMMM d, yyyy').toUpperCase();
   };
 
-  // Group messages by date
   const groupedMessages: { date: string; messages: Message[] }[] = [];
   messages.forEach(msg => {
     const dateKey = format(new Date(msg.created_at), 'yyyy-MM-dd');
@@ -164,9 +181,27 @@ const ChatPage = () => {
     }
   });
 
+  const startCall = (type: 'audio' | 'video') => {
+    setActiveCall({ type, isIncoming: false });
+  };
+
+  if (activeCall && id && user) {
+    return (
+      <CallScreen
+        conversationId={id}
+        userId={user.id}
+        otherUserName={chatName}
+        callType={activeCall.type}
+        isIncoming={activeCall.isIncoming}
+        callId={activeCall.callId}
+        onClose={() => setActiveCall(null)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* WhatsApp-style Header */}
+      {/* Header */}
       <header className="flex items-center gap-2 px-2 py-2 bg-card border-b border-border shadow-sm">
         <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9">
           <ArrowLeft className="w-5 h-5" />
@@ -187,12 +222,17 @@ const ChatPage = () => {
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="text-muted-foreground h-9 w-9">
-          <MoreVertical className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => startCall('video')} className="text-muted-foreground h-9 w-9">
+            <Video className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => startCall('audio')} className="text-muted-foreground h-9 w-9">
+            <Phone className="w-5 h-5" />
+          </Button>
+        </div>
       </header>
 
-      {/* Messages area with wallpaper */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto chat-wallpaper px-3 py-2 scrollbar-thin">
         {groupedMessages.length === 0 && (
           <div className="flex items-center justify-center h-full">
@@ -212,6 +252,7 @@ const ChatPage = () => {
               const isMine = msg.sender_id === user?.id;
               const isFirstInGroup = i === 0 || group.messages[i - 1]?.sender_id !== msg.sender_id;
               const isLastInGroup = i === group.messages.length - 1 || group.messages[i + 1]?.sender_id !== msg.sender_id;
+              const isAudio = msg.type === 'audio' && msg.media_url;
 
               return (
                 <div
@@ -230,15 +271,27 @@ const ChatPage = () => {
                         {msg.sender_profile?.display_name || msg.sender_profile?.username}
                       </p>
                     )}
-                    <div className="flex items-end gap-2">
-                      <p className="text-[14px] leading-[1.35] break-words whitespace-pre-wrap flex-1">{msg.content}</p>
-                      <span className={`text-[10px] flex-shrink-0 flex items-center gap-0.5 translate-y-0.5 ${
-                        isMine ? 'text-chat-sent-foreground/60' : 'text-chat-timestamp'
-                      }`}>
-                        {formatTime(msg.created_at)}
-                        {isMine && <CheckCheck className="w-3.5 h-3.5 inline-block ml-0.5" />}
-                      </span>
-                    </div>
+                    {isAudio ? (
+                      <div className="flex items-end gap-2">
+                        <AudioPlayer url={msg.media_url!} isMine={isMine} />
+                        <span className={`text-[10px] flex-shrink-0 translate-y-0.5 ${
+                          isMine ? 'text-chat-sent-foreground/60' : 'text-chat-timestamp'
+                        }`}>
+                          {formatTime(msg.created_at)}
+                          {isMine && <CheckCheck className="w-3.5 h-3.5 inline-block ml-0.5" />}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-end gap-2">
+                        <p className="text-[14px] leading-[1.35] break-words whitespace-pre-wrap flex-1">{msg.content}</p>
+                        <span className={`text-[10px] flex-shrink-0 flex items-center gap-0.5 translate-y-0.5 ${
+                          isMine ? 'text-chat-sent-foreground/60' : 'text-chat-timestamp'
+                        }`}>
+                          {formatTime(msg.created_at)}
+                          {isMine && <CheckCheck className="w-3.5 h-3.5 inline-block ml-0.5" />}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -248,7 +301,7 @@ const ChatPage = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* WhatsApp-style Input */}
+      {/* Input */}
       <div className="px-2 py-2 bg-background border-t border-border">
         <div className="flex items-end gap-2">
           <div className="flex-1 bg-card rounded-3xl border border-border px-4 py-2 flex items-end min-h-[44px]">
@@ -258,7 +311,6 @@ const ChatPage = () => {
               value={newMessage}
               onChange={e => {
                 setNewMessage(e.target.value);
-                // Auto-resize
                 e.target.style.height = 'auto';
                 e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
               }}
@@ -268,14 +320,24 @@ const ChatPage = () => {
               style={{ height: 'auto' }}
             />
           </div>
-          <Button
-            onClick={sendMessage}
-            disabled={!newMessage.trim() || sending}
-            size="icon"
-            className="w-11 h-11 rounded-full gradient-primary text-primary-foreground shadow-md hover:opacity-90 transition-opacity flex-shrink-0 mb-0.5"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+          {newMessage.trim() ? (
+            <Button
+              onClick={sendMessage}
+              disabled={sending}
+              size="icon"
+              className="w-11 h-11 rounded-full gradient-primary text-primary-foreground shadow-md hover:opacity-90 transition-opacity flex-shrink-0 mb-0.5"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          ) : (
+            id && user && (
+              <AudioRecorder
+                conversationId={id}
+                userId={user.id}
+                onSent={scrollToBottom}
+              />
+            )
+          )}
         </div>
       </div>
     </div>
