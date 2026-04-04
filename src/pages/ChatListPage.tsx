@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search } from 'lucide-react';
+import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search, UsersRound } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -138,6 +138,9 @@ const ChatListPage = () => {
           <h1 className="text-xl font-bold text-foreground">Vibe</h1>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/group/new')} className="text-muted-foreground hover:text-foreground">
+            <UsersRound className="w-5 h-5" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/friends')} className="text-muted-foreground hover:text-foreground">
             <UserPlus className="w-5 h-5" />
           </Button>

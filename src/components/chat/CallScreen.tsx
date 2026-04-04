@@ -148,7 +148,7 @@ const CallScreen = ({
           // Create and send offer
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          channel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer, from: userId } });
+          channel.send({ type: 'broadcast', event: 'signal', payload: { type: 'offer', sdp: offer, from: userId, callType } });
         }
       } catch (err) {
         console.error('Call setup error:', err);
