@@ -227,9 +227,9 @@ const CallScreen = ({
         </div>
         <h2 className="text-xl font-bold text-foreground">{otherUserName}</h2>
         <p className="text-sm text-muted-foreground">
-          {status === 'ringing' && (isIncoming ? 'Incoming call...' : 'Calling...')}
+          {status === 'ringing' && (isIncoming ? t('incomingCall') : t('calling'))}
           {status === 'connected' && formatDuration(duration)}
-          {status === 'ended' && 'Call ended'}
+          {status === 'ended' && t('callEnded')}
         </p>
       </div>
 
