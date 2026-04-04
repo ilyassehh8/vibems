@@ -25,6 +25,7 @@ const CallScreen = ({
   callId: existingCallId,
   onClose,
 }: CallScreenProps) => {
+  const { t } = useLanguage();
   const [status, setStatus] = useState<'ringing' | 'connected' | 'ended'>(isIncoming ? 'ringing' : 'ringing');
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(callType === 'audio');
