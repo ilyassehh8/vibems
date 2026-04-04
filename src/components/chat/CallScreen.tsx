@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface CallScreenProps {
   conversationId: string;
@@ -24,6 +25,7 @@ const CallScreen = ({
   callId: existingCallId,
   onClose,
 }: CallScreenProps) => {
+  const { t } = useLanguage();
   const [status, setStatus] = useState<'ringing' | 'connected' | 'ended'>(isIncoming ? 'ringing' : 'ringing');
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(callType === 'audio');
@@ -225,9 +227,9 @@ const CallScreen = ({
         </div>
         <h2 className="text-xl font-bold text-foreground">{otherUserName}</h2>
         <p className="text-sm text-muted-foreground">
-          {status === 'ringing' && (isIncoming ? 'Incoming call...' : 'Calling...')}
+          {status === 'ringing' && (isIncoming ? t('incomingCall') : t('calling'))}
           {status === 'connected' && formatDuration(duration)}
-          {status === 'ended' && 'Call ended'}
+          {status === 'ended' && t('callEnded')}
         </p>
       </div>
 

@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search, UsersRound } from 'lucide-react';
+import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search, UsersRound, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -29,6 +30,7 @@ interface ConversationWithDetails {
 const ChatListPage = () => {
   const { user, profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t, language, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
   const [search, setSearch] = useState('');
@@ -105,7 +107,6 @@ const ChatListPage = () => {
     fetchConversations();
   }, [user]);
 
-  // Realtime subscription for new messages
   useEffect(() => {
     const channel = supabase
       .channel('chat-list-updates')
@@ -127,6 +128,12 @@ const ChatListPage = () => {
 
   const getInitials = (name: string) => name.slice(0, 2).toUpperCase();
 
+  const cycleLang = () => {
+    const langs = ['en', 'fr', 'ar'] as const;
+    const idx = langs.indexOf(language);
+    setLanguage(langs[(idx + 1) % langs.length]);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
@@ -135,9 +142,12 @@ const ChatListPage = () => {
           <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
             <MessageCircle className="w-4 h-4 text-primary-foreground" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">Vibe</h1>
+          <h1 className="text-xl font-bold text-foreground">{t('vibe')}</h1>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={cycleLang} className="text-muted-foreground hover:text-foreground">
+            <Globe className="w-5 h-5" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/group/new')} className="text-muted-foreground hover:text-foreground">
             <UsersRound className="w-5 h-5" />
           </Button>
@@ -156,12 +166,12 @@ const ChatListPage = () => {
       {/* Search */}
       <div className="px-4 py-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground rtl:left-auto rtl:right-3" />
           <Input
-            placeholder="Search conversations..."
+            placeholder={t('searchConversations')}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-10 h-10 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
+            className="ps-10 h-10 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -169,13 +179,13 @@ const ChatListPage = () => {
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         {loading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground">Loading...</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground">{t('loading')}</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-60 text-muted-foreground gap-3">
             <Users className="w-12 h-12 opacity-40" />
-            <p className="text-sm">No conversations yet</p>
+            <p className="text-sm">{t('noConversations')}</p>
             <Button variant="outline" size="sm" onClick={() => navigate('/friends')} className="rounded-xl">
-              Add friends to start chatting
+              {t('addFriendsToStart')}
             </Button>
           </div>
         ) : (
@@ -189,14 +199,14 @@ const ChatListPage = () => {
               <button
                 key={conv.id}
                 onClick={() => navigate(`/chat/${conv.id}`)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 transition-colors text-left rtl:text-right"
               >
                 <div className="relative flex-shrink-0">
                   <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
                     {getInitials(name)}
                   </div>
                   {isOnline && (
-                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-online border-2 border-card" />
+                    <div className="absolute bottom-0 right-0 rtl:right-auto rtl:left-0 w-3.5 h-3.5 rounded-full bg-online border-2 border-card" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -209,7 +219,7 @@ const ChatListPage = () => {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground truncate">
-                    {conv.last_message?.content || 'No messages yet'}
+                    {conv.last_message?.content || t('noMessagesYet')}
                   </p>
                 </div>
               </button>
