@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Send, Phone, Video, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ type Message = Tables<'messages'> & {
 const ChatPage = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -165,8 +167,8 @@ const ChatPage = () => {
 
   const formatDateHeader = (date: string) => {
     const d = new Date(date);
-    if (isToday(d)) return 'TODAY';
-    if (isYesterday(d)) return 'YESTERDAY';
+    if (isToday(d)) return t('today');
+    if (isYesterday(d)) return t('yesterday');
     return format(d, 'MMMM d, yyyy').toUpperCase();
   };
 
@@ -218,7 +220,7 @@ const ChatPage = () => {
           <div className="min-w-0">
             <h2 className="font-semibold text-foreground text-[15px] truncate leading-tight">{chatName}</h2>
             <p className="text-[11px] text-muted-foreground leading-tight">
-              {isOnline ? 'online' : 'offline'}
+              {isOnline ? t('online') : t('offline')}
             </p>
           </div>
         </div>
@@ -237,7 +239,7 @@ const ChatPage = () => {
         {groupedMessages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="bg-card/80 backdrop-blur-sm rounded-xl px-6 py-4 text-center shadow-sm">
-              <p className="text-sm text-muted-foreground">Send a message to start the conversation</p>
+              <p className="text-sm text-muted-foreground">{t('sendMessage')}</p>
             </div>
           </div>
         )}
@@ -307,7 +309,7 @@ const ChatPage = () => {
           <div className="flex-1 bg-card rounded-3xl border border-border px-4 py-2 flex items-end min-h-[44px]">
             <textarea
               ref={inputRef}
-              placeholder="Message"
+              placeholder={t('message')}
               value={newMessage}
               onChange={e => {
                 setNewMessage(e.target.value);

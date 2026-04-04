@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AuthPage = () => {
@@ -12,6 +13,7 @@ const AuthPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp, signIn } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,9 +46,23 @@ const AuthPage = () => {
     }
   };
 
+  const cycleLang = () => {
+    const langs = ['en', 'fr', 'ar'] as const;
+    const idx = langs.indexOf(language);
+    setLanguage(langs[(idx + 1) % langs.length]);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-8">
+        {/* Language toggle */}
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={cycleLang} className="text-muted-foreground gap-1.5">
+            <Globe className="w-4 h-4" />
+            {language === 'en' ? 'EN' : language === 'fr' ? 'FR' : 'عر'}
+          </Button>
+        </div>
+
         {/* Logo */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl gradient-primary shadow-lg">
@@ -54,7 +70,7 @@ const AuthPage = () => {
           </div>
           <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Vibe</h1>
           <p className="text-muted-foreground text-sm">
-            {isSignUp ? 'Create your account' : 'Welcome back'}
+            {isSignUp ? t('createAccount') : t('welcomeBack')}
           </p>
         </div>
 
@@ -62,7 +78,7 @@ const AuthPage = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
             <Input
-              placeholder="Username"
+              placeholder={t('username')}
               value={username}
               onChange={e => setUsername(e.target.value)}
               className="h-12 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
@@ -70,7 +86,7 @@ const AuthPage = () => {
             />
             <Input
               type="password"
-              placeholder="Password"
+              placeholder={t('password')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="h-12 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
@@ -79,7 +95,7 @@ const AuthPage = () => {
             {isSignUp && (
               <Input
                 type="password"
-                placeholder="Confirm password"
+                placeholder={t('confirmPassword')}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 className="h-12 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
@@ -93,17 +109,17 @@ const AuthPage = () => {
             disabled={loading}
             className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold text-base shadow-lg hover:opacity-90 transition-opacity"
           >
-            {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
+            {loading ? t('pleaseWait') : isSignUp ? t('signUp') : t('signIn')}
           </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+          {isSignUp ? t('alreadyHaveAccount') : t('dontHaveAccount')}{' '}
           <button
             onClick={() => setIsSignUp(!isSignUp)}
             className="text-accent font-semibold hover:underline"
           >
-            {isSignUp ? 'Sign in' : 'Sign up'}
+            {isSignUp ? t('signIn') : t('signUp')}
           </button>
         </p>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Check, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ type Profile = Tables<'profiles'>;
 
 const CreateGroupPage = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [friends, setFriends] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -54,11 +56,11 @@ const CreateGroupPage = () => {
 
   const createGroup = async () => {
     if (!user || selected.size < 2) {
-      toast.error('Select at least 2 friends for a group');
+      toast.error(t('selectAtLeast2'));
       return;
     }
     if (!groupName.trim()) {
-      toast.error('Enter a group name');
+      toast.error(t('enterGroupName'));
       return;
     }
 
@@ -66,11 +68,7 @@ const CreateGroupPage = () => {
     try {
       const { data: conv, error: convError } = await supabase
         .from('conversations')
-        .insert({
-          type: 'group',
-          name: groupName.trim(),
-          created_by: user.id,
-        })
+        .insert({ type: 'group', name: groupName.trim(), created_by: user.id })
         .select('id')
         .single();
 
@@ -78,20 +76,13 @@ const CreateGroupPage = () => {
 
       const members = [
         { conversation_id: conv.id, user_id: user.id, role: 'admin' },
-        ...[...selected].map(uid => ({
-          conversation_id: conv.id,
-          user_id: uid,
-          role: 'member',
-        })),
+        ...[...selected].map(uid => ({ conversation_id: conv.id, user_id: uid, role: 'member' })),
       ];
 
-      const { error: membersError } = await supabase
-        .from('conversation_members')
-        .insert(members);
-
+      const { error: membersError } = await supabase.from('conversation_members').insert(members);
       if (membersError) throw membersError;
 
-      toast.success('Group created!');
+      toast.success(t('groupCreated'));
       navigate(`/chat/${conv.id}`);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to create group');
@@ -109,9 +100,9 @@ const CreateGroupPage = () => {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-foreground">New Group</h1>
+          <h1 className="text-lg font-bold text-foreground">{t('newGroup')}</h1>
           <p className="text-xs text-muted-foreground">
-            {selected.size} / {friends.length} selected
+            {selected.size} / {friends.length} {t('selected')}
           </p>
         </div>
         <Button
@@ -120,13 +111,13 @@ const CreateGroupPage = () => {
           size="sm"
           className="rounded-xl gradient-primary text-primary-foreground"
         >
-          <Check className="w-4 h-4 mr-1" /> Create
+          <Check className="w-4 h-4 mr-1" /> {t('create')}
         </Button>
       </header>
 
       <div className="px-4 py-3 border-b border-border">
         <Input
-          placeholder="Group name..."
+          placeholder={t('groupName')}
           value={groupName}
           onChange={e => setGroupName(e.target.value)}
           className="h-11 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
@@ -139,11 +130,7 @@ const CreateGroupPage = () => {
             const f = friends.find(p => p.user_id === uid);
             if (!f) return null;
             return (
-              <button
-                key={uid}
-                onClick={() => toggleSelect(uid)}
-                className="flex flex-col items-center gap-1 min-w-[56px]"
-              >
+              <button key={uid} onClick={() => toggleSelect(uid)} className="flex flex-col items-center gap-1 min-w-[56px]">
                 <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-xs relative">
                   {getInitials(f.display_name || f.username)}
                   <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive flex items-center justify-center">
@@ -163,7 +150,7 @@ const CreateGroupPage = () => {
         {friends.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2">
             <Users className="w-10 h-10 opacity-40" />
-            <p className="text-sm">Add friends first to create a group</p>
+            <p className="text-sm">{t('addFriendsFirst')}</p>
           </div>
         ) : (
           friends.map(f => {
@@ -172,7 +159,7 @@ const CreateGroupPage = () => {
               <button
                 key={f.user_id}
                 onClick={() => toggleSelect(f.user_id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 transition-colors text-left ${
+                className={`w-full flex items-center gap-3 px-4 py-3 transition-colors text-left rtl:text-right ${
                   isSelected ? 'bg-accent/10' : 'hover:bg-secondary/60'
                 }`}
               >
