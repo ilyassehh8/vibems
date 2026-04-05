@@ -75,17 +75,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (username: string, password: string) => {
     const normalizedUsername = username.toLowerCase().trim();
-    
-    // Look up profile by username (case-insensitive)
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .ilike('username', normalizedUsername)
-      .maybeSingle();
-
-    if (!profileData) throw new Error('Username not found');
-
-    // Use the convention email
     const email = `${normalizedUsername}@vibe.app`;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;

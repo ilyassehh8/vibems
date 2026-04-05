@@ -112,20 +112,8 @@ const ChatPage = () => {
       })
       .subscribe();
 
-    // Listen for incoming calls via broadcast (same channel name as CallScreen)
-    const callChannel = supabase.channel(`call-${id}`, {
-      config: { broadcast: { self: false } },
-    });
-    callChannel.on('broadcast', { event: 'signal' }, ({ payload }) => {
-      if (payload.from !== user.id && payload.type === 'offer' && !activeCall) {
-        setActiveCall({ type: payload.callType || 'audio', isIncoming: true });
-      }
-    });
-    callChannel.subscribe();
-
     return () => {
       supabase.removeChannel(channel);
-      supabase.removeChannel(callChannel);
     };
   }, [id, user]);
 
