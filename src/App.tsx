@@ -11,6 +11,7 @@ import AuthPage from "./pages/AuthPage.tsx";
 import ChatPage from "./pages/ChatPage.tsx";
 import FriendsPage from "./pages/FriendsPage.tsx";
 import CreateGroupPage from "./pages/CreateGroupPage.tsx";
+import ProfilePage from "./pages/ProfilePage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
                 <Route path="/chat/:id" element={<ChatPage />} />
                 <Route path="/friends" element={<FriendsPage />} />
                 <Route path="/group/new" element={<CreateGroupPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
