@@ -224,6 +224,8 @@ export type Database = {
           id: string
           is_online: boolean | null
           last_seen: string | null
+          linked_email: string | null
+          phone: string | null
           status_text: string | null
           updated_at: string
           user_id: string
@@ -236,6 +238,8 @@ export type Database = {
           id?: string
           is_online?: boolean | null
           last_seen?: string | null
+          linked_email?: string | null
+          phone?: string | null
           status_text?: string | null
           updated_at?: string
           user_id: string
@@ -248,6 +252,8 @@ export type Database = {
           id?: string
           is_online?: boolean | null
           last_seen?: string | null
+          linked_email?: string | null
+          phone?: string | null
           status_text?: string | null
           updated_at?: string
           user_id?: string
