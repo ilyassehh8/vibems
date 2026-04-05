@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search, UsersRound, Globe } from 'lucide-react';
+import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search, UsersRound, Globe, Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -147,6 +147,9 @@ const ChatListPage = () => {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={cycleLang} className="text-muted-foreground hover:text-foreground">
             <Globe className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/profile')} className="text-muted-foreground hover:text-foreground">
+            <Settings className="w-5 h-5" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => navigate('/group/new')} className="text-muted-foreground hover:text-foreground">
             <UsersRound className="w-5 h-5" />
