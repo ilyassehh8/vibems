@@ -143,7 +143,9 @@ const CallScreen = ({
         }
 
         if (pc.connectionState === 'failed') {
-          void endCall();
+          setStatus('ended');
+          cleanup();
+          setTimeout(onClose, 1500);
         }
       };
 
@@ -155,7 +157,7 @@ const CallScreen = ({
     } finally {
       setupPromiseRef.current = null;
     }
-  }, [callType, endCall, ensureLocalStream, startTimer, userId]);
+  }, [callType, cleanup, ensureLocalStream, onClose, startTimer, userId]);
 
   const sendOffer = useCallback(async () => {
     const channel = channelRef.current;
@@ -224,7 +226,9 @@ const CallScreen = ({
             await sendOffer();
           }
         } else if (payload.type === 'hangup') {
-          await endCall();
+          setStatus('ended');
+          cleanup();
+          setTimeout(onClose, 1500);
         }
       } catch (error) {
         console.error('Signal handling error:', error);
@@ -268,7 +272,7 @@ const CallScreen = ({
     } finally {
       channelPromiseRef.current = null;
     }
-  }, [conversationId, endCall, ensurePeerConnection, flushPendingIceCandidates, isIncoming, sendOffer, userId]);
+  }, [cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, sendOffer, userId]);
 
   const endCall = useCallback(async () => {
     if (endedRef.current) return;
