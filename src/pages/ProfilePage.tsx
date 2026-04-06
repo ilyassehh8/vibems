@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 const ProfilePage = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -21,6 +21,14 @@ const ProfilePage = () => {
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    setDisplayName(profile?.display_name || '');
+    setStatusText(profile?.status_text || '');
+    setPhone(profile?.phone || '');
+    setLinkedEmail(profile?.linked_email || '');
+    setAvatarUrl(profile?.avatar_url || '');
+  }, [profile]);
 
   const uploadAvatar = async (file: File) => {
     if (!user) return;
@@ -59,6 +67,7 @@ const ProfilePage = () => {
         })
         .eq('user_id', user.id);
       if (error) throw error;
+      await refreshProfile();
       toast.success(t('profileSaved'));
       navigate('/');
     } catch (err: any) {
@@ -68,7 +77,7 @@ const ProfilePage = () => {
     }
   };
 
-  const initials = (profile?.display_name || profile?.username || '??').slice(0, 2).toUpperCase();
+  const initials = (displayName || profile?.display_name || profile?.username || '??').slice(0, 2).toUpperCase();
 
   return (
     <div className="flex flex-col h-screen bg-background">
