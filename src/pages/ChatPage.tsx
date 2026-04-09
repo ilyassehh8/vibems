@@ -27,7 +27,7 @@ const ChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
-  const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; isIncoming?: boolean; callId?: string } | null>(null);
+  const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; isIncoming?: boolean; callId?: string; initialStream?: MediaStream | null } | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -171,8 +171,17 @@ const ChatPage = () => {
     }
   });
 
-  const startCall = (type: 'audio' | 'video') => {
-    setActiveCall({ type, isIncoming: false });
+  const startCall = async (type: 'audio' | 'video') => {
+    try {
+      const initialStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: type === 'video',
+      });
+
+      setActiveCall({ type, isIncoming: false, initialStream });
+    } catch (error) {
+      console.error('Start call media error:', error);
+    }
   };
 
   if (activeCall && id && user) {
@@ -184,6 +193,7 @@ const ChatPage = () => {
         callType={activeCall.type}
         isIncoming={activeCall.isIncoming}
         callId={activeCall.callId}
+        initialLocalStream={activeCall.initialStream}
         onClose={() => setActiveCall(null)}
       />
     );
@@ -213,10 +223,10 @@ const ChatPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => startCall('video')} className="text-muted-foreground h-9 w-9">
+          <Button variant="ghost" size="icon" onClick={() => void startCall('video')} className="text-muted-foreground h-9 w-9">
             <Video className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => startCall('audio')} className="text-muted-foreground h-9 w-9">
+          <Button variant="ghost" size="icon" onClick={() => void startCall('audio')} className="text-muted-foreground h-9 w-9">
             <Phone className="w-5 h-5" />
           </Button>
         </div>

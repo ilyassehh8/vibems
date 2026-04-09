@@ -11,6 +11,7 @@ interface CallScreenProps {
   callType: 'audio' | 'video';
   isIncoming?: boolean;
   callId?: string;
+  initialLocalStream?: MediaStream | null;
   onClose: () => void;
 }
 
@@ -23,6 +24,7 @@ const CallScreen = ({
   callType,
   isIncoming = false,
   callId: existingCallId,
+  initialLocalStream = null,
   onClose,
 }: CallScreenProps) => {
   const { t } = useLanguage();
@@ -34,6 +36,7 @@ const CallScreen = ({
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const localStreamPromiseRef = useRef<Promise<MediaStream> | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -55,6 +58,7 @@ const CallScreen = ({
     pendingIceCandidatesRef.current = [];
     setupPromiseRef.current = null;
     channelPromiseRef.current = null;
+    localStreamPromiseRef.current = null;
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => t.stop());
       localStreamRef.current = null;
@@ -88,23 +92,35 @@ const CallScreen = ({
     }
   }, []);
 
-  const ensureLocalStream = useCallback(async () => {
-    if (localStreamRef.current) return localStreamRef.current;
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: callType === 'video',
-    });
-
-    localStreamRef.current = stream;
-
+  const attachLocalStream = useCallback((stream: MediaStream) => {
     if (callType === 'video' && localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
+      localVideoRef.current.muted = true;
       void localVideoRef.current.play().catch(() => undefined);
     }
-
-    return stream;
   }, [callType]);
+
+  const ensureLocalStream = useCallback(async () => {
+    if (localStreamRef.current) return localStreamRef.current;
+    if (localStreamPromiseRef.current) return localStreamPromiseRef.current;
+
+    localStreamPromiseRef.current = (async () => {
+      const stream = initialLocalStream ?? await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: callType === 'video',
+      });
+
+      localStreamRef.current = stream;
+      attachLocalStream(stream);
+      return stream;
+    })();
+
+    try {
+      return await localStreamPromiseRef.current;
+    } finally {
+      localStreamPromiseRef.current = null;
+    }
+  }, [attachLocalStream, callType, initialLocalStream]);
 
   const ensurePeerConnection = useCallback(async () => {
     if (setupPromiseRef.current) return setupPromiseRef.current;
@@ -324,7 +340,9 @@ const CallScreen = ({
 
     try {
       setAccepting(true);
+      const localStreamPromise = ensureLocalStream();
       const channel = await ensureSignalingChannel();
+      await localStreamPromise;
       await ensurePeerConnection();
 
       acceptedRef.current = true;
