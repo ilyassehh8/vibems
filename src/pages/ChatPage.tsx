@@ -25,13 +25,23 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [chatName, setChatName] = useState('');
   const [isOnline, setIsOnline] = useState(false);
+  const [isGroup, setIsGroup] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
   const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; isIncoming?: boolean; callId?: string; initialStream?: MediaStream | null } | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(distanceFromBottom > 200);
   };
 
   useEffect(() => {
