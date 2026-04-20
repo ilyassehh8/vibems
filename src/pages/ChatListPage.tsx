@@ -4,9 +4,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search, UsersRound, Globe, Settings } from 'lucide-react';
+import {
+  MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search,
+  UsersRound, Globe, Settings, Plus, MoreVertical
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import BottomNav from '@/components/BottomNav';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ConversationWithDetails {
@@ -134,35 +144,73 @@ const ChatListPage = () => {
     setLanguage(langs[(idx + 1) % langs.length]);
   };
 
+  const myInitials = (profile?.display_name || profile?.username || '??').slice(0, 2).toUpperCase();
+
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background animate-fade-in">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-            <MessageCircle className="w-4 h-4 text-primary-foreground" />
-          </div>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => navigate('/profile')}
+            className="relative active:scale-95 transition-transform"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="me"
+                className="w-9 h-9 rounded-full object-cover border-2 border-card shadow-sm"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xs shadow-sm">
+                {myInitials}
+              </div>
+            )}
+          </button>
           <h1 className="text-xl font-bold text-foreground">{t('vibe')}</h1>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={cycleLang} className="text-muted-foreground hover:text-foreground">
-            <Globe className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate('/profile')} className="text-muted-foreground hover:text-foreground">
-            <Settings className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate('/group/new')} className="text-muted-foreground hover:text-foreground">
-            <UsersRound className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate('/friends')} className="text-muted-foreground hover:text-foreground">
-            <UserPlus className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground hover:text-foreground">
-            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={signOut} className="text-muted-foreground hover:text-foreground">
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={cycleLang} className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform">
+                <Globe className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('language')}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/friends')} className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform">
+                <UserPlus className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('friends')}</TooltipContent>
+          </Tooltip>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform">
+                <MoreVertical className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <Settings className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> {t('profile')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/group/new')}>
+                <UsersRound className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> {t('newGroupTooltip')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={toggleTheme}>
+                {theme === 'light' ? <Moon className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> : <Sun className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" />}
+                {t('theme')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                <LogOut className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> {t('signOut')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -180,11 +228,21 @@ const ChatListPage = () => {
       </div>
 
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+      <div className="flex-1 overflow-y-auto scrollbar-thin relative">
         {loading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground">{t('loading')}</div>
+          <div className="space-y-1 px-4 py-2">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3 py-2">
+                <Skeleton className="w-12 h-12 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-60 text-muted-foreground gap-3">
+          <div className="flex flex-col items-center justify-center h-60 text-muted-foreground gap-3 animate-fade-in">
             <Users className="w-12 h-12 opacity-40" />
             <p className="text-sm">{t('noConversations')}</p>
             <Button variant="outline" size="sm" onClick={() => navigate('/friends')} className="rounded-xl">
@@ -197,17 +255,22 @@ const ChatListPage = () => {
               ? (conv.other_user?.display_name || conv.other_user?.username || 'Unknown')
               : (conv.name || 'Group');
             const isOnline = conv.type === 'direct' && conv.other_user?.is_online;
+            const avatar = conv.type === 'direct' ? conv.other_user?.avatar_url : null;
 
             return (
               <button
                 key={conv.id}
                 onClick={() => navigate(`/chat/${conv.id}`)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 transition-colors text-left rtl:text-right"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 active:bg-secondary transition-colors text-left rtl:text-right"
               >
                 <div className="relative flex-shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
-                    {getInitials(name)}
-                  </div>
+                  {avatar ? (
+                    <img src={avatar} alt={name} className="w-12 h-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
+                      {getInitials(name)}
+                    </div>
+                  )}
                   {isOnline && (
                     <div className="absolute bottom-0 right-0 rtl:right-auto rtl:left-0 w-3.5 h-3.5 rounded-full bg-online border-2 border-card" />
                   )}
@@ -229,7 +292,23 @@ const ChatListPage = () => {
             );
           })
         )}
+
+        {/* Floating action button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => navigate('/friends')}
+              className="fixed bottom-20 right-5 rtl:right-auto rtl:left-5 w-14 h-14 rounded-full gradient-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-90 hover:scale-105 transition-transform z-10"
+              aria-label={t('newChatTooltip')}
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">{t('newChatTooltip')}</TooltipContent>
+        </Tooltip>
       </div>
+
+      <BottomNav />
     </div>
   );
 };
