@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, UserPlus, Check, X, MessageCircle, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, UserPlus, Check, X, MessageCircle, Search, Loader2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Tables } from '@/integrations/supabase/types';
+import BottomNav from '@/components/BottomNav';
 
 type Profile = Tables<'profiles'>;
 type Friendship = Tables<'friendships'>;
@@ -187,9 +188,9 @@ const FriendsPage = () => {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background animate-fade-in">
       <header className="flex items-center gap-3 px-3 py-3 border-b border-border bg-card">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground active:scale-95 transition-transform">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
@@ -312,7 +313,11 @@ const FriendsPage = () => {
         )}
 
         {tab === 'add' && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 animate-fade-in">
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-accent/10 border border-accent/20">
+              <Info className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-foreground/80 leading-relaxed">{t('addFriendHelp')}</p>
+            </div>
             <div className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground rtl:left-auto rtl:right-3" />
@@ -333,8 +338,15 @@ const FriendsPage = () => {
               </Button>
             </div>
 
+            {searching && (
+              <div className="flex items-center justify-center py-6 text-muted-foreground gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">{t('searching')}</span>
+              </div>
+            )}
+
             {searchResult && (
-              <div className="bg-card rounded-2xl p-4 border border-border space-y-3">
+              <div className="bg-card rounded-2xl p-4 border border-border space-y-3 animate-scale-in">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold">
                     {getInitials(searchResult.display_name || searchResult.username)}
@@ -361,6 +373,8 @@ const FriendsPage = () => {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 };

@@ -94,9 +94,9 @@ const CreateGroupPage = () => {
   const getInitials = (name: string) => name.slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background animate-fade-in">
       <header className="flex items-center gap-3 px-3 py-3 border-b border-border bg-card">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-muted-foreground">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-muted-foreground active:scale-95 transition-transform">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">
@@ -109,9 +109,13 @@ const CreateGroupPage = () => {
           onClick={createGroup}
           disabled={creating || selected.size < 2 || !groupName.trim()}
           size="sm"
-          className="rounded-xl gradient-primary text-primary-foreground"
+          className="rounded-xl gradient-primary text-primary-foreground active:scale-95 transition-transform disabled:opacity-50"
         >
-          <Check className="w-4 h-4 mr-1" /> {t('create')}
+          {creating ? (
+            <span className="flex items-center gap-1"><span className="w-3 h-3 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> {t('create')}</span>
+          ) : (
+            <><Check className="w-4 h-4 mr-1 rtl:mr-0 rtl:ml-1" /> {t('create')}</>
+          )}
         </Button>
       </header>
 

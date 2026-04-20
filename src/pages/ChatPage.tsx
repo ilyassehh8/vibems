@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Send, Phone, Video, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, CheckCheck, ChevronDown, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
 import AudioRecorder from '@/components/chat/AudioRecorder';
 import AudioPlayer from '@/components/chat/AudioPlayer';
 import CallScreen from '@/components/chat/CallScreen';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type Message = Tables<'messages'> & {
   sender_profile?: { username: string; display_name: string | null; avatar_url: string | null };
@@ -24,13 +25,23 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [chatName, setChatName] = useState('');
   const [isOnline, setIsOnline] = useState(false);
+  const [isGroup, setIsGroup] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
   const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; isIncoming?: boolean; callId?: string; initialStream?: MediaStream | null } | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(distanceFromBottom > 200);
   };
 
   useEffect(() => {
@@ -61,6 +72,7 @@ const ChatPage = () => {
         }
       } else {
         setChatName(conv?.name || 'Group Chat');
+        setIsGroup(true);
       }
     };
 
@@ -200,10 +212,10 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background animate-fade-in">
       {/* Header */}
       <header className="flex items-center gap-2 px-2 py-2 bg-card border-b border-border shadow-sm">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9 active:scale-90 transition-transform">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
@@ -218,25 +230,42 @@ const ChatPage = () => {
           <div className="min-w-0">
             <h2 className="font-semibold text-foreground text-[15px] truncate leading-tight">{chatName}</h2>
             <p className="text-[11px] text-muted-foreground leading-tight">
-              {isOnline ? t('online') : t('offline')}
+              {isGroup ? '' : (isOnline ? t('online') : t('offline'))}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => void startCall('video')} className="text-muted-foreground h-9 w-9">
-            <Video className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => void startCall('audio')} className="text-muted-foreground h-9 w-9">
-            <Phone className="w-5 h-5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => void startCall('video')} className="text-muted-foreground h-9 w-9 active:scale-90 transition-transform">
+                <Video className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Video call</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => void startCall('audio')} className="text-muted-foreground h-9 w-9 active:scale-90 transition-transform">
+                <Phone className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Audio call</TooltipContent>
+          </Tooltip>
         </div>
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto chat-wallpaper px-3 py-2 scrollbar-thin">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto chat-wallpaper px-3 py-2 scrollbar-thin relative"
+      >
         {groupedMessages.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <div className="bg-card/80 backdrop-blur-sm rounded-xl px-6 py-4 text-center shadow-sm">
+          <div className="flex flex-col items-center justify-center h-full gap-3 animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center shadow-sm">
+              <MessageSquare className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <div className="bg-card/80 backdrop-blur-sm rounded-xl px-6 py-3 text-center shadow-sm max-w-[260px]">
               <p className="text-sm text-muted-foreground">{t('sendMessage')}</p>
             </div>
           </div>
@@ -253,22 +282,37 @@ const ChatPage = () => {
               const isFirstInGroup = i === 0 || group.messages[i - 1]?.sender_id !== msg.sender_id;
               const isLastInGroup = i === group.messages.length - 1 || group.messages[i + 1]?.sender_id !== msg.sender_id;
               const isAudio = msg.type === 'audio' && msg.media_url;
+              const showAvatar = isGroup && !isMine && isLastInGroup;
+              const senderName = msg.sender_profile?.display_name || msg.sender_profile?.username || '?';
 
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-2' : 'mb-0.5'}`}
+                  className={`flex items-end gap-1.5 ${isMine ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-2' : 'mb-0.5'} animate-fade-in`}
                 >
+                  {isGroup && !isMine && (
+                    <div className="w-7 h-7 flex-shrink-0">
+                      {showAvatar && (
+                        msg.sender_profile?.avatar_url ? (
+                          <img src={msg.sender_profile.avatar_url} alt={senderName} className="w-7 h-7 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent text-[10px] font-bold">
+                            {senderName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
                   <div
-                    className={`max-w-[80%] px-3 py-1.5 shadow-sm ${
+                    className={`max-w-[78%] px-3 py-1.5 shadow-sm ${
                       isMine
                         ? `bg-chat-sent text-chat-sent-foreground ${isLastInGroup ? 'rounded-2xl rounded-br-sm chat-bubble-tail-sent' : 'rounded-2xl'}`
                         : `bg-chat-received text-chat-received-foreground ${isLastInGroup ? 'rounded-2xl rounded-bl-sm chat-bubble-tail-received' : 'rounded-2xl'}`
                     }`}
                   >
-                    {!isMine && isFirstInGroup && (
+                    {!isMine && isFirstInGroup && isGroup && (
                       <p className="text-[11px] font-semibold text-accent mb-0.5">
-                        {msg.sender_profile?.display_name || msg.sender_profile?.username}
+                        {senderName}
                       </p>
                     )}
                     {isAudio ? (
@@ -299,6 +343,22 @@ const ChatPage = () => {
           </div>
         ))}
         <div ref={messagesEndRef} />
+
+        {/* Scroll-to-bottom floating button */}
+        {showScrollBtn && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={scrollToBottom}
+                aria-label={t('scrollToBottom')}
+                className="sticky bottom-3 ml-auto flex w-10 h-10 rounded-full bg-card border border-border shadow-md items-center justify-center text-foreground hover:bg-secondary active:scale-90 transition-all animate-fade-in"
+              >
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{t('scrollToBottom')}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {/* Input */}
