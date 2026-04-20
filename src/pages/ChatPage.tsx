@@ -215,7 +215,7 @@ const ChatPage = () => {
     <div className="flex flex-col h-screen bg-background animate-fade-in">
       {/* Header */}
       <header className="flex items-center gap-2 px-2 py-2 bg-card border-b border-border shadow-sm">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9 active:scale-90 transition-transform">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
@@ -230,17 +230,27 @@ const ChatPage = () => {
           <div className="min-w-0">
             <h2 className="font-semibold text-foreground text-[15px] truncate leading-tight">{chatName}</h2>
             <p className="text-[11px] text-muted-foreground leading-tight">
-              {isOnline ? t('online') : t('offline')}
+              {isGroup ? '' : (isOnline ? t('online') : t('offline'))}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => void startCall('video')} className="text-muted-foreground h-9 w-9">
-            <Video className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => void startCall('audio')} className="text-muted-foreground h-9 w-9">
-            <Phone className="w-5 h-5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => void startCall('video')} className="text-muted-foreground h-9 w-9 active:scale-90 transition-transform">
+                <Video className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Video call</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => void startCall('audio')} className="text-muted-foreground h-9 w-9 active:scale-90 transition-transform">
+                <Phone className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Audio call</TooltipContent>
+          </Tooltip>
         </div>
       </header>
 
