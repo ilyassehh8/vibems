@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Send, Phone, Video, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, Phone, Video, CheckCheck, ChevronDown, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
 import AudioRecorder from '@/components/chat/AudioRecorder';
 import AudioPlayer from '@/components/chat/AudioPlayer';
 import CallScreen from '@/components/chat/CallScreen';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type Message = Tables<'messages'> & {
   sender_profile?: { username: string; display_name: string | null; avatar_url: string | null };
