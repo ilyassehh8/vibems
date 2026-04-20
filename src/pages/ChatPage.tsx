@@ -212,7 +212,7 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background animate-fade-in">
       {/* Header */}
       <header className="flex items-center gap-2 px-2 py-2 bg-card border-b border-border shadow-sm">
         <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="text-muted-foreground h-9 w-9">
@@ -245,10 +245,17 @@ const ChatPage = () => {
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto chat-wallpaper px-3 py-2 scrollbar-thin">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto chat-wallpaper px-3 py-2 scrollbar-thin relative"
+      >
         {groupedMessages.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <div className="bg-card/80 backdrop-blur-sm rounded-xl px-6 py-4 text-center shadow-sm">
+          <div className="flex flex-col items-center justify-center h-full gap-3 animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center shadow-sm">
+              <MessageSquare className="w-7 h-7 text-muted-foreground" />
+            </div>
+            <div className="bg-card/80 backdrop-blur-sm rounded-xl px-6 py-3 text-center shadow-sm max-w-[260px]">
               <p className="text-sm text-muted-foreground">{t('sendMessage')}</p>
             </div>
           </div>
@@ -265,22 +272,37 @@ const ChatPage = () => {
               const isFirstInGroup = i === 0 || group.messages[i - 1]?.sender_id !== msg.sender_id;
               const isLastInGroup = i === group.messages.length - 1 || group.messages[i + 1]?.sender_id !== msg.sender_id;
               const isAudio = msg.type === 'audio' && msg.media_url;
+              const showAvatar = isGroup && !isMine && isLastInGroup;
+              const senderName = msg.sender_profile?.display_name || msg.sender_profile?.username || '?';
 
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-2' : 'mb-0.5'}`}
+                  className={`flex items-end gap-1.5 ${isMine ? 'justify-end' : 'justify-start'} ${isLastInGroup ? 'mb-2' : 'mb-0.5'} animate-fade-in`}
                 >
+                  {isGroup && !isMine && (
+                    <div className="w-7 h-7 flex-shrink-0">
+                      {showAvatar && (
+                        msg.sender_profile?.avatar_url ? (
+                          <img src={msg.sender_profile.avatar_url} alt={senderName} className="w-7 h-7 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent text-[10px] font-bold">
+                            {senderName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
                   <div
-                    className={`max-w-[80%] px-3 py-1.5 shadow-sm ${
+                    className={`max-w-[78%] px-3 py-1.5 shadow-sm ${
                       isMine
                         ? `bg-chat-sent text-chat-sent-foreground ${isLastInGroup ? 'rounded-2xl rounded-br-sm chat-bubble-tail-sent' : 'rounded-2xl'}`
                         : `bg-chat-received text-chat-received-foreground ${isLastInGroup ? 'rounded-2xl rounded-bl-sm chat-bubble-tail-received' : 'rounded-2xl'}`
                     }`}
                   >
-                    {!isMine && isFirstInGroup && (
+                    {!isMine && isFirstInGroup && isGroup && (
                       <p className="text-[11px] font-semibold text-accent mb-0.5">
-                        {msg.sender_profile?.display_name || msg.sender_profile?.username}
+                        {senderName}
                       </p>
                     )}
                     {isAudio ? (
@@ -311,6 +333,22 @@ const ChatPage = () => {
           </div>
         ))}
         <div ref={messagesEndRef} />
+
+        {/* Scroll-to-bottom floating button */}
+        {showScrollBtn && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={scrollToBottom}
+                aria-label={t('scrollToBottom')}
+                className="sticky bottom-3 ml-auto flex w-10 h-10 rounded-full bg-card border border-border shadow-md items-center justify-center text-foreground hover:bg-secondary active:scale-90 transition-all animate-fade-in"
+              >
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{t('scrollToBottom')}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {/* Input */}
