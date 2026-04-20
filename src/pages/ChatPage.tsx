@@ -62,6 +62,7 @@ const ChatPage = () => {
         }
       } else {
         setChatName(conv?.name || 'Group Chat');
+        setIsGroup(true);
       }
     };
 
