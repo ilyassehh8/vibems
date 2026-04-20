@@ -15,6 +15,15 @@ interface CallScreenProps {
   onClose: () => void;
 }
 
+type CallStatus = 'ringing' | 'connected' | 'ended';
+
+type SignalPayload =
+  | { type: 'offer'; sdp: RTCSessionDescriptionInit; from: string; callType: 'audio' | 'video' }
+  | { type: 'answer'; sdp: RTCSessionDescriptionInit; from: string }
+  | { type: 'ice'; candidate: RTCIceCandidateInit; from: string }
+  | { type: 'accept'; from: string }
+  | { type: 'hangup'; from: string };
+
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 const CallScreen = ({
@@ -28,7 +37,7 @@ const CallScreen = ({
   onClose,
 }: CallScreenProps) => {
   const { t } = useLanguage();
-  const [status, setStatus] = useState<'ringing' | 'connected' | 'ended'>('ringing');
+  const [status, setStatus] = useState<CallStatus>('ringing');
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(callType === 'audio');
   const [duration, setDuration] = useState(0);
@@ -36,33 +45,69 @@ const CallScreen = ({
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const localStreamPromiseRef = useRef<Promise<MediaStream> | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelPromiseRef = useRef<Promise<ReturnType<typeof supabase.channel>> | null>(null);
+  const channelReadyRef = useRef(false);
   const callIdRef = useRef(existingCallId || '');
   const acceptedRef = useRef(isIncoming ? false : true);
   const offerSentRef = useRef(false);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const endedRef = useRef(false);
   const setupPromiseRef = useRef<Promise<RTCPeerConnection> | null>(null);
-  const channelPromiseRef = useRef<Promise<ReturnType<typeof supabase.channel>> | null>(null);
+
+  const playMediaElement = useCallback(async (element: HTMLMediaElement | null) => {
+    if (!element) return;
+
+    try {
+      element.autoplay = true;
+      element.muted = false;
+      if ('playsInline' in element) {
+        (element as HTMLMediaElement & { playsInline?: boolean }).playsInline = true;
+      }
+      await element.play();
+    } catch {
+      window.setTimeout(() => {
+        void element.play().catch(() => undefined);
+      }, 150);
+    }
+  }, []);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+
     pendingIceCandidatesRef.current = [];
     setupPromiseRef.current = null;
-    channelPromiseRef.current = null;
     localStreamPromiseRef.current = null;
+    remoteStreamRef.current = null;
+    channelReadyRef.current = false;
+    channelPromiseRef.current = null;
+
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(t => t.stop());
+      localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
     if (pcRef.current) {
       pcRef.current.ontrack = null;
       pcRef.current.onicecandidate = null;
@@ -70,6 +115,7 @@ const CallScreen = ({
       pcRef.current.close();
       pcRef.current = null;
     }
+
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -78,7 +124,7 @@ const CallScreen = ({
 
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
-    timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
+    timerRef.current = setInterval(() => setDuration(current => current + 1), 1000);
   }, []);
 
   const flushPendingIceCandidates = useCallback(async (pc: RTCPeerConnection) => {
@@ -99,6 +145,14 @@ const CallScreen = ({
       void localVideoRef.current.play().catch(() => undefined);
     }
   }, [callType]);
+
+  const attachRemoteStream = useCallback(async () => {
+    const mediaElement = callType === 'video' ? remoteVideoRef.current : remoteAudioRef.current;
+    if (!mediaElement || !remoteStreamRef.current) return;
+
+    mediaElement.srcObject = remoteStreamRef.current;
+    await playMediaElement(mediaElement);
+  }, [callType, playMediaElement]);
 
   const ensureLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
@@ -130,24 +184,38 @@ const CallScreen = ({
       const stream = await ensureLocalStream();
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       pcRef.current = pc;
+      remoteStreamRef.current = new MediaStream();
 
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      pc.ontrack = (e) => {
-        const mediaElement = callType === 'video' ? remoteVideoRef.current : remoteAudioRef.current;
-
-        if (mediaElement) {
-          mediaElement.srcObject = e.streams[0];
-          void mediaElement.play().catch(() => undefined);
+      pc.ontrack = (event) => {
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
         }
+
+        event.streams[0]?.getTracks().forEach(track => {
+          const alreadyAdded = remoteStreamRef.current?.getTracks().some(existingTrack => existingTrack.id === track.id);
+          if (!alreadyAdded) {
+            remoteStreamRef.current?.addTrack(track);
+          }
+        });
+
+        if (event.streams.length === 0 && event.track) {
+          const alreadyAdded = remoteStreamRef.current.getTracks().some(existingTrack => existingTrack.id === event.track.id);
+          if (!alreadyAdded) {
+            remoteStreamRef.current.addTrack(event.track);
+          }
+        }
+
+        void attachRemoteStream();
       };
 
-      pc.onicecandidate = (e) => {
-        if (e.candidate && channelRef.current) {
+      pc.onicecandidate = (event) => {
+        if (event.candidate && channelRef.current && channelReadyRef.current) {
           void channelRef.current.send({
             type: 'broadcast',
             event: 'signal',
-            payload: { type: 'ice', candidate: e.candidate.toJSON(), from: userId },
+            payload: { type: 'ice', candidate: event.candidate.toJSON(), from: userId } satisfies SignalPayload,
           });
         }
       };
@@ -156,12 +224,13 @@ const CallScreen = ({
         if (pc.connectionState === 'connected') {
           setStatus('connected');
           startTimer();
+          void attachRemoteStream();
         }
 
-        if (pc.connectionState === 'failed') {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
           setStatus('ended');
           cleanup();
-          setTimeout(onClose, 1500);
+          window.setTimeout(onClose, 1500);
         }
       };
 
@@ -173,122 +242,125 @@ const CallScreen = ({
     } finally {
       setupPromiseRef.current = null;
     }
-  }, [callType, cleanup, ensureLocalStream, onClose, startTimer, userId]);
-
-  const sendOffer = useCallback(async () => {
-    const channel = channelRef.current;
-
-    if (!channel || offerSentRef.current) return;
-
-    const pc = await ensurePeerConnection();
-
-    try {
-      offerSentRef.current = true;
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await channel.send({
-        type: 'broadcast',
-        event: 'signal',
-        payload: { type: 'offer', sdp: offer, from: userId, callType },
-      });
-    } catch (error) {
-      offerSentRef.current = false;
-      throw error;
-    }
-  }, [callType, ensurePeerConnection, userId]);
+  }, [attachRemoteStream, cleanup, ensureLocalStream, onClose, startTimer, userId]);
 
   const ensureSignalingChannel = useCallback(async () => {
-    if (channelPromiseRef.current) return channelPromiseRef.current;
-    if (channelRef.current) return channelRef.current;
+    if (channelRef.current && channelReadyRef.current) {
+      return channelRef.current;
+    }
 
-    const channel = supabase.channel(`call-${conversationId}`, {
+    if (channelPromiseRef.current) {
+      return channelPromiseRef.current;
+    }
+
+    const channel = channelRef.current ?? supabase.channel(`call-${conversationId}`, {
       config: { broadcast: { self: false } },
     });
-    channelRef.current = channel;
 
-    channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
-      if (payload.from === userId) return;
+    if (!channelRef.current) {
+      channelRef.current = channel;
 
-      try {
-        if (payload.type === 'offer') {
-          if (isIncoming && !acceptedRef.current) return;
+      channel.on('broadcast', { event: 'signal' }, async ({ payload }) => {
+        const signal = payload as SignalPayload;
+        if (signal.from === userId) return;
 
-          const pc = await ensurePeerConnection();
-          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-          await flushPendingIceCandidates(pc);
+        try {
+          if (signal.type === 'offer') {
+            if (isIncoming && !acceptedRef.current) return;
 
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          await channel.send({
-            type: 'broadcast',
-            event: 'signal',
-            payload: { type: 'answer', sdp: answer, from: userId },
-          });
-        } else if (payload.type === 'answer') {
-          const pc = await ensurePeerConnection();
-          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-          await flushPendingIceCandidates(pc);
-        } else if (payload.type === 'ice') {
-          if (pcRef.current?.remoteDescription) {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-          } else {
-            pendingIceCandidatesRef.current.push(payload.candidate);
+            const pc = await ensurePeerConnection();
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            await flushPendingIceCandidates(pc);
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await channel.send({
+              type: 'broadcast',
+              event: 'signal',
+              payload: { type: 'answer', sdp: answer, from: userId } satisfies SignalPayload,
+            });
+          } else if (signal.type === 'answer') {
+            const pc = await ensurePeerConnection();
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            await flushPendingIceCandidates(pc);
+          } else if (signal.type === 'ice') {
+            if (pcRef.current?.remoteDescription) {
+              await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } else {
+              pendingIceCandidatesRef.current.push(signal.candidate);
+            }
+          } else if (signal.type === 'accept') {
+            acceptedRef.current = true;
+
+            if (!isIncoming && !offerSentRef.current) {
+              const pc = await ensurePeerConnection();
+
+              try {
+                offerSentRef.current = true;
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await channel.send({
+                  type: 'broadcast',
+                  event: 'signal',
+                  payload: { type: 'offer', sdp: offer, from: userId, callType } satisfies SignalPayload,
+                });
+              } catch (error) {
+                offerSentRef.current = false;
+                throw error;
+              }
+            }
+          } else if (signal.type === 'hangup') {
+            setStatus('ended');
+            cleanup();
+            window.setTimeout(onClose, 1500);
           }
-        } else if (payload.type === 'accept') {
-          acceptedRef.current = true;
-
-          if (!isIncoming) {
-            await ensurePeerConnection();
-            await sendOffer();
-          }
-        } else if (payload.type === 'hangup') {
-          setStatus('ended');
-          cleanup();
-          setTimeout(onClose, 1500);
-        }
-      } catch (error) {
-        console.error('Signal handling error:', error);
-      }
-    });
-
-    channelPromiseRef.current = new Promise<ReturnType<typeof supabase.channel>>((resolve, reject) => {
-      let settled = false;
-
-      const finish = (callback: () => void) => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timeoutId);
-        callback();
-      };
-
-      const timeoutId = window.setTimeout(() => {
-        finish(() => reject(new Error('Call signaling timed out')));
-      }, 10000);
-
-      channel.subscribe((subscriptionStatus) => {
-        if (subscriptionStatus === 'SUBSCRIBED') {
-          finish(() => resolve(channel));
-          return;
-        }
-
-        if (subscriptionStatus === 'TIMED_OUT' || subscriptionStatus === 'CHANNEL_ERROR' || subscriptionStatus === 'CLOSED') {
-          finish(() => reject(new Error(`Call signaling ${subscriptionStatus.toLowerCase()}`)));
+        } catch (error) {
+          console.error('Signal handling error:', error);
         }
       });
-    });
+
+      channelPromiseRef.current = new Promise<ReturnType<typeof supabase.channel>>((resolve, reject) => {
+        let settled = false;
+
+        const finish = (callback: () => void) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          callback();
+        };
+
+        const timeoutId = window.setTimeout(() => {
+          channelReadyRef.current = false;
+          finish(() => reject(new Error('Call signaling timed out')));
+        }, 10000);
+
+        channel.subscribe((subscriptionStatus) => {
+          if (subscriptionStatus === 'SUBSCRIBED') {
+            channelReadyRef.current = true;
+            finish(() => resolve(channel));
+            return;
+          }
+
+          if (subscriptionStatus === 'TIMED_OUT' || subscriptionStatus === 'CHANNEL_ERROR' || subscriptionStatus === 'CLOSED') {
+            channelReadyRef.current = false;
+            finish(() => reject(new Error(`Call signaling ${subscriptionStatus.toLowerCase()}`)));
+          }
+        });
+      });
+    }
 
     try {
-      return await channelPromiseRef.current;
+      return await channelPromiseRef.current!;
     } catch (error) {
       if (channelRef.current === channel) {
         supabase.removeChannel(channel);
         channelRef.current = null;
       }
-      throw error;
-    } finally {
+      channelReadyRef.current = false;
       channelPromiseRef.current = null;
+      throw error;
     }
-  }, [cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, sendOffer, userId]);
+  }, [callType, cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, userId]);
 
   const endCall = useCallback(async () => {
     if (endedRef.current) return;
@@ -297,13 +369,16 @@ const CallScreen = ({
     cleanup();
 
     if (callIdRef.current) {
-      await supabase.from('calls').update({
-        status: 'ended',
-        ended_at: new Date().toISOString(),
-      }).eq('id', callIdRef.current);
+      await supabase
+        .from('calls')
+        .update({
+          status: 'ended',
+          ended_at: new Date().toISOString(),
+        })
+        .eq('id', callIdRef.current);
     }
 
-    setTimeout(onClose, 1500);
+    window.setTimeout(onClose, 1500);
   }, [cleanup, onClose]);
 
   useEffect(() => {
@@ -314,19 +389,22 @@ const CallScreen = ({
         if (!isIncoming) {
           await ensurePeerConnection();
 
-          // Create call record
-          const { data: newCall, error: callError } = await supabase.from('calls').insert({
-            conversation_id: conversationId,
-            caller_id: userId,
-            call_type: callType,
-            status: 'ringing',
-          }).select('id').single();
+          const { data: newCall, error: callError } = await supabase
+            .from('calls')
+            .insert({
+              conversation_id: conversationId,
+              caller_id: userId,
+              call_type: callType,
+              status: 'ringing',
+            })
+            .select('id')
+            .single();
 
           if (callError) throw callError;
           if (newCall) callIdRef.current = newCall.id;
         }
-      } catch (err) {
-        console.error('Call setup error:', err);
+      } catch (error) {
+        console.error('Call setup error:', error);
         void endCall();
       }
     };
@@ -346,7 +424,11 @@ const CallScreen = ({
       await ensurePeerConnection();
 
       acceptedRef.current = true;
-      await channel.send({ type: 'broadcast', event: 'signal', payload: { type: 'accept', from: userId } });
+      await channel.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: { type: 'accept', from: userId } satisfies SignalPayload,
+      });
 
       if (callIdRef.current) {
         const { error } = await supabase
@@ -368,32 +450,37 @@ const CallScreen = ({
   };
 
   const toggleMute = () => {
-    const audio = localStreamRef.current?.getAudioTracks()[0];
-    if (audio) {
-      audio.enabled = !audio.enabled;
-      setMuted(!audio.enabled);
-    }
+    const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    audioTrack.enabled = !audioTrack.enabled;
+    setMuted(!audioTrack.enabled);
   };
 
   const toggleVideo = () => {
-    const video = localStreamRef.current?.getVideoTracks()[0];
-    if (video) {
-      video.enabled = !video.enabled;
-      setVideoOff(!video.enabled);
-    }
+    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    videoTrack.enabled = !videoTrack.enabled;
+    setVideoOff(!videoTrack.enabled);
   };
 
   const hangup = async () => {
-    if (channelRef.current) {
-      await channelRef.current.send({ type: 'broadcast', event: 'signal', payload: { type: 'hangup', from: userId } });
+    if (channelRef.current && channelReadyRef.current) {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: { type: 'hangup', from: userId } satisfies SignalPayload,
+      });
     }
+
     await endCall();
   };
 
-  const formatDuration = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   return (
