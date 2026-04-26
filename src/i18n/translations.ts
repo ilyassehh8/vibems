@@ -137,7 +137,6 @@ export const translations = {
     left: 'Left community',
     serverSettings: 'Community settings',
     deleteRole: 'Delete role',
-    save: 'Save',
     delete: 'Delete',
     cancel: 'Cancel',
     welcomeToChannel: 'Welcome to',
