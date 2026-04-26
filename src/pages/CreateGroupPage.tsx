@@ -55,7 +55,7 @@ const CreateGroupPage = () => {
   };
 
   const createGroup = async () => {
-    if (!user || selected.size < 2) {
+    if (!user || selected.size < 1) {
       toast.error(t('selectAtLeast2'));
       return;
     }
@@ -72,7 +72,11 @@ const CreateGroupPage = () => {
         .select('id')
         .single();
 
-      if (convError || !conv) throw convError || new Error('Failed to create group');
+      if (convError) {
+        console.error('Conversation insert failed:', convError);
+        throw new Error(convError.message || 'Failed to create group');
+      }
+      if (!conv) throw new Error('No conversation returned');
 
       const members = [
         { conversation_id: conv.id, user_id: user.id, role: 'admin' },
@@ -80,11 +84,15 @@ const CreateGroupPage = () => {
       ];
 
       const { error: membersError } = await supabase.from('conversation_members').insert(members);
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.error('Members insert failed:', membersError);
+        throw new Error(membersError.message || 'Failed to add members');
+      }
 
       toast.success(t('groupCreated'));
       navigate(`/chat/${conv.id}`);
     } catch (err: any) {
+      console.error('createGroup error:', err);
       toast.error(err?.message || 'Failed to create group');
     } finally {
       setCreating(false);
@@ -107,7 +115,7 @@ const CreateGroupPage = () => {
         </div>
         <Button
           onClick={createGroup}
-          disabled={creating || selected.size < 2 || !groupName.trim()}
+          disabled={creating || selected.size < 1 || !groupName.trim()}
           size="sm"
           className="rounded-xl gradient-primary text-primary-foreground active:scale-95 transition-transform disabled:opacity-50"
         >
