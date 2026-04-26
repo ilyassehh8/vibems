@@ -89,7 +89,7 @@ const CommunityRolesPage = () => {
       toast.error('Cannot grant this to @everyone');
       return;
     }
-    const { error } = await supabase.from('server_roles').update({ [key]: value }).eq('id', role.id);
+    const { error } = await supabase.from('server_roles').update({ [key]: value } as never).eq('id', role.id);
     if (error) { toast.error(error.message); return; }
     setRoles(prev => prev.map(r => r.id === role.id ? { ...r, [key]: value } : r));
   };
