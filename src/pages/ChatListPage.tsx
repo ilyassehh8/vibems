@@ -62,52 +62,66 @@ const ChatListPage = () => {
 
     const convIds = memberships.map(m => m.conversation_id);
 
-    const { data: convs } = await supabase
-      .from('conversations')
-      .select('*')
-      .in('id', convIds)
-      .order('updated_at', { ascending: false });
+    // Batch all three queries in parallel — saves bandwidth and round trips
+    const [convsRes, directMembersRes, lastMsgsRes] = await Promise.all([
+      supabase
+        .from('conversations')
+        .select('id, type, name, updated_at')
+        .in('id', convIds)
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('conversation_members')
+        .select('conversation_id, user_id')
+        .in('conversation_id', convIds)
+        .neq('user_id', user.id),
+      supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, sender_id')
+        .in('conversation_id', convIds)
+        .order('created_at', { ascending: false }),
+    ]);
 
+    const convs = convsRes.data;
     if (!convs) {
       setLoading(false);
       return;
     }
 
-    const detailed: ConversationWithDetails[] = [];
-
-    for (const conv of convs) {
-      const item: ConversationWithDetails = { ...conv };
-
-      if (conv.type === 'direct') {
-        const { data: members } = await supabase
-          .from('conversation_members')
-          .select('user_id')
-          .eq('conversation_id', conv.id)
-          .neq('user_id', user.id);
-
-        if (members?.[0]) {
-          const { data: otherProfile } = await supabase
-            .from('profiles')
-            .select('username, display_name, avatar_url, is_online')
-            .eq('user_id', members[0].user_id)
-            .maybeSingle();
-          item.other_user = otherProfile || undefined;
-        }
+    // Build map of other-user per direct conversation
+    const otherUserByConv = new Map<string, string>();
+    (directMembersRes.data || []).forEach(m => {
+      if (!otherUserByConv.has(m.conversation_id)) {
+        otherUserByConv.set(m.conversation_id, m.user_id);
       }
+    });
 
-      const { data: msgs } = await supabase
-        .from('messages')
-        .select('content, created_at, sender_id')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (msgs?.[0]) {
-        item.last_message = msgs[0];
-      }
-
-      detailed.push(item);
+    // Fetch all needed profiles in one shot
+    const otherUserIds = Array.from(new Set(otherUserByConv.values()));
+    const profilesById = new Map<string, any>();
+    if (otherUserIds.length) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, username, display_name, avatar_url, is_online')
+        .in('user_id', otherUserIds);
+      (profiles || []).forEach(p => profilesById.set(p.user_id, p));
     }
+
+    // Reduce messages to last-per-conversation (already ordered desc)
+    const lastByConv = new Map<string, any>();
+    (lastMsgsRes.data || []).forEach(m => {
+      if (!lastByConv.has(m.conversation_id)) lastByConv.set(m.conversation_id, m);
+    });
+
+    const detailed: ConversationWithDetails[] = convs.map(conv => {
+      const item: ConversationWithDetails = { ...conv };
+      if (conv.type === 'direct') {
+        const otherId = otherUserByConv.get(conv.id);
+        if (otherId) item.other_user = profilesById.get(otherId);
+      }
+      const last = lastByConv.get(conv.id);
+      if (last) item.last_message = last;
+      return item;
+    });
 
     setConversations(detailed);
     setLoading(false);
@@ -118,14 +132,19 @@ const ChatListPage = () => {
   }, [user]);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
       .channel('chat-list-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        fetchConversations();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => fetchConversations(), 800);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const filtered = conversations.filter(c => {
