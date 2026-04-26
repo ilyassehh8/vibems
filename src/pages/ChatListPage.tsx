@@ -132,14 +132,19 @@ const ChatListPage = () => {
   }, [user]);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
       .channel('chat-list-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        fetchConversations();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => fetchConversations(), 800);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const filtered = conversations.filter(c => {
