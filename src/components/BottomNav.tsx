@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { MessageCircle, Users, User } from 'lucide-react';
+import { MessageCircle, Users, User, Globe } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,7 @@ const BottomNav = () => {
   const items = [
     { path: '/', icon: MessageCircle, label: t('chats'), match: (p: string) => p === '/' },
     { path: '/friends', icon: Users, label: t('friends'), match: (p: string) => p.startsWith('/friends') },
+    { path: '/communities', icon: Globe, label: t('communities'), match: (p: string) => p.startsWith('/communities') },
     { path: '/profile', icon: User, label: t('profile'), match: (p: string) => p.startsWith('/profile') },
   ];
 
