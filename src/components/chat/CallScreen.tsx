@@ -309,8 +309,13 @@ const CallScreen = ({
             });
           } else if (signal.type === 'answer') {
             const pc = await ensurePeerConnection();
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-            await flushPendingIceCandidates(pc);
+            answerReceivedRef.current = true;
+            stopOfferRetry();
+
+            if (pc.signalingState === 'have-local-offer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+              await flushPendingIceCandidates(pc);
+            }
           } else if (signal.type === 'ice') {
             if (pcRef.current?.remoteDescription) {
               await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
@@ -327,11 +332,26 @@ const CallScreen = ({
                 offerSentRef.current = true;
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
+                const offerPayload = { type: 'offer', sdp: offer, from: userId, callType } satisfies SignalPayload;
                 await channel.send({
                   type: 'broadcast',
                   event: 'signal',
-                  payload: { type: 'offer', sdp: offer, from: userId, callType } satisfies SignalPayload,
+                  payload: offerPayload,
                 });
+
+                stopOfferRetry();
+                offerRetryTimerRef.current = setInterval(() => {
+                  if (answerReceivedRef.current || !channelReadyRef.current) {
+                    stopOfferRetry();
+                    return;
+                  }
+
+                  void channel.send({
+                    type: 'broadcast',
+                    event: 'signal',
+                    payload: offerPayload,
+                  });
+                }, 1200);
               } catch (error) {
                 offerSentRef.current = false;
                 throw error;
@@ -388,7 +408,7 @@ const CallScreen = ({
       channelPromiseRef.current = null;
       throw error;
     }
-  }, [callType, cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, userId]);
+  }, [callType, cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, stopOfferRetry, userId]);
 
   const endCall = useCallback(async () => {
     if (endedRef.current) return;
