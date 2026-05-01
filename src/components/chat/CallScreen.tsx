@@ -57,9 +57,11 @@ const CallScreen = ({
   const callIdRef = useRef(existingCallId || '');
   const acceptedRef = useRef(isIncoming ? false : true);
   const offerSentRef = useRef(false);
+  const answerReceivedRef = useRef(false);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const endedRef = useRef(false);
   const setupPromiseRef = useRef<Promise<RTCPeerConnection> | null>(null);
+  const offerRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playMediaElement = useCallback(async (element: HTMLMediaElement | null) => {
     if (!element) return;
@@ -90,6 +92,13 @@ const CallScreen = ({
     remoteStreamRef.current = null;
     channelReadyRef.current = false;
     channelPromiseRef.current = null;
+    offerSentRef.current = false;
+    answerReceivedRef.current = false;
+
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
+    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
