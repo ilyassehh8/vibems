@@ -6,7 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   MessageCircle, Users, Sun, Moon, LogOut, UserPlus, Search,
-  UsersRound, Globe, Settings, Plus, MoreVertical
+  UsersRound, Globe, Settings, Plus, MoreVertical, Sparkles
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -311,6 +311,20 @@ const ChatListPage = () => {
             );
           })
         )}
+
+        {/* Floating AI button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => navigate('/ai')}
+              className="fixed bottom-36 right-5 rtl:right-auto rtl:left-5 w-12 h-12 rounded-full bg-gradient-to-br from-accent to-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-90 hover:scale-105 transition-transform z-10"
+              aria-label="Vibe AI"
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Vibe AI</TooltipContent>
+        </Tooltip>
 
         {/* Floating action button */}
         <Tooltip>
