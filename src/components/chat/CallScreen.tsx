@@ -202,7 +202,19 @@ const CallScreen = ({
       pcRef.current = pc;
       remoteStreamRef.current = new MediaStream();
 
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      const localAudioTrack = stream.getAudioTracks()[0];
+      if (localAudioTrack) {
+        await audioTransceiver.sender.replaceTrack(localAudioTrack);
+      }
+
+      if (callType === 'video') {
+        const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+        const localVideoTrack = stream.getVideoTracks()[0];
+        if (localVideoTrack) {
+          await videoTransceiver.sender.replaceTrack(localVideoTrack);
+        }
+      }
 
       pc.ontrack = (event) => {
         if (!remoteStreamRef.current) {
@@ -258,7 +270,7 @@ const CallScreen = ({
     } finally {
       setupPromiseRef.current = null;
     }
-  }, [attachRemoteStream, cleanup, ensureLocalStream, onClose, startTimer, userId]);
+  }, [attachRemoteStream, callType, cleanup, ensureLocalStream, onClose, startTimer, userId]);
 
   const ensureSignalingChannel = useCallback(async () => {
     if (channelRef.current && channelReadyRef.current) {
