@@ -147,6 +147,13 @@ const CallScreen = ({
     }
   }, []);
 
+  const stopOfferRetry = useCallback(() => {
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
+    }
+  }, []);
+
   const attachLocalStream = useCallback((stream: MediaStream) => {
     if (callType === 'video' && localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
