@@ -16,6 +16,7 @@ import CommunitiesPage from "./pages/CommunitiesPage.tsx";
 import CreateCommunityPage from "./pages/CreateCommunityPage.tsx";
 import CommunityServerPage from "./pages/CommunityServerPage.tsx";
 import CommunityRolesPage from "./pages/CommunityRolesPage.tsx";
+import AIAssistantPage from "./pages/AIAssistantPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/communities/new" element={<CreateCommunityPage />} />
                 <Route path="/communities/:id" element={<CommunityServerPage />} />
                 <Route path="/communities/:id/roles" element={<CommunityRolesPage />} />
+                <Route path="/ai" element={<AIAssistantPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
