@@ -57,9 +57,11 @@ const CallScreen = ({
   const callIdRef = useRef(existingCallId || '');
   const acceptedRef = useRef(isIncoming ? false : true);
   const offerSentRef = useRef(false);
+  const answerReceivedRef = useRef(false);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const endedRef = useRef(false);
   const setupPromiseRef = useRef<Promise<RTCPeerConnection> | null>(null);
+  const offerRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playMediaElement = useCallback(async (element: HTMLMediaElement | null) => {
     if (!element) return;
@@ -90,6 +92,13 @@ const CallScreen = ({
     remoteStreamRef.current = null;
     channelReadyRef.current = false;
     channelPromiseRef.current = null;
+    offerSentRef.current = false;
+    answerReceivedRef.current = false;
+
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
+    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
@@ -135,6 +144,13 @@ const CallScreen = ({
       if (candidate) {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       }
+    }
+  }, []);
+
+  const stopOfferRetry = useCallback(() => {
+    if (offerRetryTimerRef.current) {
+      clearInterval(offerRetryTimerRef.current);
+      offerRetryTimerRef.current = null;
     }
   }, []);
 
@@ -186,7 +202,19 @@ const CallScreen = ({
       pcRef.current = pc;
       remoteStreamRef.current = new MediaStream();
 
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      const localAudioTrack = stream.getAudioTracks()[0];
+      if (localAudioTrack) {
+        await audioTransceiver.sender.replaceTrack(localAudioTrack);
+      }
+
+      if (callType === 'video') {
+        const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+        const localVideoTrack = stream.getVideoTracks()[0];
+        if (localVideoTrack) {
+          await videoTransceiver.sender.replaceTrack(localVideoTrack);
+        }
+      }
 
       pc.ontrack = (event) => {
         if (!remoteStreamRef.current) {
@@ -242,7 +270,7 @@ const CallScreen = ({
     } finally {
       setupPromiseRef.current = null;
     }
-  }, [attachRemoteStream, cleanup, ensureLocalStream, onClose, startTimer, userId]);
+  }, [attachRemoteStream, callType, cleanup, ensureLocalStream, onClose, startTimer, userId]);
 
   const ensureSignalingChannel = useCallback(async () => {
     if (channelRef.current && channelReadyRef.current) {
@@ -281,8 +309,13 @@ const CallScreen = ({
             });
           } else if (signal.type === 'answer') {
             const pc = await ensurePeerConnection();
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-            await flushPendingIceCandidates(pc);
+            answerReceivedRef.current = true;
+            stopOfferRetry();
+
+            if (pc.signalingState === 'have-local-offer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+              await flushPendingIceCandidates(pc);
+            }
           } else if (signal.type === 'ice') {
             if (pcRef.current?.remoteDescription) {
               await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
@@ -299,11 +332,26 @@ const CallScreen = ({
                 offerSentRef.current = true;
                 const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
+                const offerPayload = { type: 'offer', sdp: offer, from: userId, callType } satisfies SignalPayload;
                 await channel.send({
                   type: 'broadcast',
                   event: 'signal',
-                  payload: { type: 'offer', sdp: offer, from: userId, callType } satisfies SignalPayload,
+                  payload: offerPayload,
                 });
+
+                stopOfferRetry();
+                offerRetryTimerRef.current = setInterval(() => {
+                  if (answerReceivedRef.current || !channelReadyRef.current) {
+                    stopOfferRetry();
+                    return;
+                  }
+
+                  void channel.send({
+                    type: 'broadcast',
+                    event: 'signal',
+                    payload: offerPayload,
+                  });
+                }, 1200);
               } catch (error) {
                 offerSentRef.current = false;
                 throw error;
@@ -360,7 +408,7 @@ const CallScreen = ({
       channelPromiseRef.current = null;
       throw error;
     }
-  }, [callType, cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, userId]);
+  }, [callType, cleanup, conversationId, ensurePeerConnection, flushPendingIceCandidates, isIncoming, onClose, stopOfferRetry, userId]);
 
   const endCall = useCallback(async () => {
     if (endedRef.current) return;
