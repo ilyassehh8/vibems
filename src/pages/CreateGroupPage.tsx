@@ -59,16 +59,17 @@ const CreateGroupPage = () => {
       toast.error(t('selectAtLeast2'));
       return;
     }
-    if (!groupName.trim()) {
-      toast.error(t('enterGroupName'));
-      return;
-    }
+    const finalName = groupName.trim() || [...selected]
+      .map(uid => friends.find(p => p.user_id === uid)?.display_name || friends.find(p => p.user_id === uid)?.username)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ') || 'New Group';
 
     setCreating(true);
     try {
       const { data: conv, error: convError } = await supabase
         .from('conversations')
-        .insert({ type: 'group', name: groupName.trim(), created_by: user.id })
+        .insert({ type: 'group', name: finalName, created_by: user.id })
         .select('id')
         .single();
 
@@ -115,7 +116,7 @@ const CreateGroupPage = () => {
         </div>
         <Button
           onClick={createGroup}
-          disabled={creating || selected.size < 1 || !groupName.trim()}
+          disabled={creating || selected.size < 1}
           size="sm"
           className="rounded-xl gradient-primary text-primary-foreground active:scale-95 transition-transform disabled:opacity-50"
         >
@@ -129,7 +130,7 @@ const CreateGroupPage = () => {
 
       <div className="px-4 py-3 border-b border-border">
         <Input
-          placeholder={t('groupName')}
+          placeholder={`${t('groupName')} (optional)`}
           value={groupName}
           onChange={e => setGroupName(e.target.value)}
           className="h-11 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
