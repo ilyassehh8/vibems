@@ -69,7 +69,7 @@ const CreateGroupPage = () => {
     try {
       const { data: conv, error: convError } = await supabase
         .from('conversations')
-        .insert({ type: 'group', name: groupName.trim(), created_by: user.id })
+        .insert({ type: 'group', name: finalName, created_by: user.id })
         .select('id')
         .single();
 
