@@ -59,10 +59,11 @@ const CreateGroupPage = () => {
       toast.error(t('selectAtLeast2'));
       return;
     }
-    if (!groupName.trim()) {
-      toast.error(t('enterGroupName'));
-      return;
-    }
+    const finalName = groupName.trim() || [...selected]
+      .map(uid => friends.find(p => p.user_id === uid)?.display_name || friends.find(p => p.user_id === uid)?.username)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ') || 'New Group';
 
     setCreating(true);
     try {
