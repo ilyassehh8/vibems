@@ -15,8 +15,21 @@ const BottomNav = () => {
     { path: '/profile', icon: User, label: t('profile'), match: (p: string) => p.startsWith('/profile') },
   ];
 
+  const activeIdx = items.findIndex(it => it.match(location.pathname));
+
   return (
-    <nav className="flex items-center justify-around border-t border-border bg-card/95 backdrop-blur-md py-1.5 safe-area-pb">
+    <nav className="relative flex items-center justify-around border-t border-border/60 glass-strong py-1.5 safe-area-pb">
+      {/* Morphing pill indicator */}
+      {activeIdx >= 0 && (
+        <div
+          className="pointer-events-none absolute top-1.5 bottom-1.5 rounded-2xl bg-accent/10 transition-all duration-500 ease-spring"
+          style={{
+            left: `calc(${(activeIdx / items.length) * 100}% + 4px)`,
+            width: `calc(${100 / items.length}% - 8px)`,
+          }}
+        />
+      )}
+
       {items.map(item => {
         const Icon = item.icon;
         const active = item.match(location.pathname);
@@ -25,12 +38,23 @@ const BottomNav = () => {
             key={item.path}
             onClick={() => navigate(item.path)}
             className={cn(
-              'flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all active:scale-95',
+              'relative z-10 flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-2xl transition-all duration-300 press',
               active ? 'text-accent' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Icon className={cn('w-5 h-5 transition-transform', active && 'scale-110')} />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <Icon
+              strokeWidth={active ? 2.4 : 1.8}
+              className={cn(
+                'w-5 h-5 transition-all duration-500 ease-spring',
+                active ? 'scale-110 -translate-y-0.5' : 'scale-100'
+              )}
+            />
+            <span className={cn(
+              'text-[10px] font-semibold tracking-tight transition-all',
+              active ? 'opacity-100' : 'opacity-70'
+            )}>
+              {item.label}
+            </span>
           </button>
         );
       })}
