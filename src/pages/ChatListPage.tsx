@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import BottomNav from '@/components/BottomNav';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface ConversationWithDetails {
   id: string;
