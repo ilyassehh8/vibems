@@ -130,7 +130,7 @@ const CreateGroupPage = () => {
 
       <div className="px-4 py-3 border-b border-border">
         <Input
-          placeholder={t('groupName')}
+          placeholder={`${t('groupName')} (optional)`}
           value={groupName}
           onChange={e => setGroupName(e.target.value)}
           className="h-11 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
