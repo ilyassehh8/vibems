@@ -31,6 +31,7 @@ const App = () => (
             <Sonner />
             <IncomingCallListener />
             <BrowserRouter>
+              <NotificationsListener />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<AuthPage />} />
