@@ -116,7 +116,7 @@ const CreateGroupPage = () => {
         </div>
         <Button
           onClick={createGroup}
-          disabled={creating || selected.size < 1 || !groupName.trim()}
+          disabled={creating || selected.size < 1}
           size="sm"
           className="rounded-xl gradient-primary text-primary-foreground active:scale-95 transition-transform disabled:opacity-50"
         >
