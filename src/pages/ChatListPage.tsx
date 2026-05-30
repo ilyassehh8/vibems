@@ -166,32 +166,42 @@ const ChatListPage = () => {
   const myInitials = (profile?.display_name || profile?.username || '??').slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex flex-col h-screen bg-background animate-fade-in">
+    <div className="flex flex-col h-screen bg-background animate-fade-in relative">
+      {/* Ambient gradient mesh behind everything */}
+      <div className="pointer-events-none absolute inset-0 gradient-mesh opacity-70" aria-hidden />
+
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
-        <div className="flex items-center gap-2.5">
+      <header className="relative flex items-center justify-between px-4 py-3 border-b border-border/60 glass-strong z-10">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/profile')}
-            className="relative active:scale-95 transition-transform"
+            className="relative press"
+            aria-label={t('profile')}
           >
+            <div className="absolute -inset-0.5 rounded-full gradient-hero opacity-90 blur-[1px]" />
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
                 alt="me"
-                className="w-9 h-9 rounded-full object-cover border-2 border-card shadow-sm"
+                className="relative w-10 h-10 rounded-full object-cover border-2 border-card"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xs shadow-sm">
+              <div className="relative w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xs border-2 border-card">
                 {myInitials}
               </div>
             )}
           </button>
-          <h1 className="text-xl font-bold text-foreground">{t('vibe')}</h1>
+          <div className="flex flex-col leading-tight">
+            <h1 className="text-xl font-extrabold tracking-tight text-gradient-primary">{t('vibe')}</h1>
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              {conversations.length} {conversations.length === 1 ? 'chat' : 'chats'}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={cycleLang} className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform">
+              <Button variant="ghost" size="icon" onClick={cycleLang} className="text-muted-foreground hover:text-foreground rounded-xl press">
                 <Globe className="w-5 h-5" />
               </Button>
             </TooltipTrigger>
@@ -200,7 +210,7 @@ const ChatListPage = () => {
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={() => navigate('/friends')} className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/friends')} className="text-muted-foreground hover:text-foreground rounded-xl press">
                 <UserPlus className="w-5 h-5" />
               </Button>
             </TooltipTrigger>
@@ -209,23 +219,23 @@ const ChatListPage = () => {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground active:scale-95 transition-transform">
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground rounded-xl press">
                 <MoreVertical className="w-5 h-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => navigate('/profile')}>
+            <DropdownMenuContent align="end" className="w-52 rounded-2xl border border-border/70 shadow-elevate animate-scale-in">
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="rounded-lg cursor-pointer">
                 <Settings className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> {t('profile')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/group/new')}>
+              <DropdownMenuItem onClick={() => navigate('/group/new')} className="rounded-lg cursor-pointer">
                 <UsersRound className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> {t('newGroupTooltip')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={toggleTheme}>
+              <DropdownMenuItem onClick={toggleTheme} className="rounded-lg cursor-pointer">
                 {theme === 'light' ? <Moon className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> : <Sun className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" />}
                 {t('theme')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem onClick={signOut} className="rounded-lg cursor-pointer text-destructive focus:text-destructive">
                 <LogOut className="w-4 h-4 mr-2 rtl:mr-0 rtl:ml-2" /> {t('signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -234,82 +244,106 @@ const ChatListPage = () => {
       </header>
 
       {/* Search */}
-      <div className="px-4 py-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground rtl:left-auto rtl:right-3" />
+      <div className="relative px-4 pt-3 pb-2 z-10">
+        <div className="relative group">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground rtl:left-auto rtl:right-3.5 transition-colors group-focus-within:text-accent" />
           <Input
             placeholder={t('searchConversations')}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="ps-10 h-10 rounded-xl bg-secondary border-0 text-foreground placeholder:text-muted-foreground"
+            className="ps-10 h-11 rounded-2xl bg-secondary/70 border border-transparent focus-visible:border-accent/40 focus-visible:bg-card text-foreground placeholder:text-muted-foreground transition-all"
           />
         </div>
       </div>
 
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin relative">
+      <div className="relative flex-1 overflow-y-auto scrollbar-thin z-10">
         {loading ? (
           <div className="space-y-1 px-4 py-2">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-3 py-2">
-                <Skeleton className="w-12 h-12 rounded-full" />
+              <div key={i} className="flex items-center gap-3 py-2.5">
+                <div className="w-12 h-12 rounded-full shimmer" />
                 <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-1/3" />
-                  <Skeleton className="h-3 w-2/3" />
+                  <div className="h-3.5 w-1/3 rounded-full shimmer" />
+                  <div className="h-3 w-2/3 rounded-full shimmer" />
                 </div>
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-60 text-muted-foreground gap-3 animate-fade-in">
-            <Users className="w-12 h-12 opacity-40" />
-            <p className="text-sm">{t('noConversations')}</p>
-            <Button variant="outline" size="sm" onClick={() => navigate('/friends')} className="rounded-xl">
+          <div className="flex flex-col items-center justify-center h-72 text-muted-foreground gap-4 animate-fade-up px-6 text-center">
+            <div className="relative">
+              <div className="absolute inset-0 gradient-primary rounded-full blur-2xl opacity-30 animate-pulse" />
+              <div className="relative w-20 h-20 rounded-3xl gradient-primary flex items-center justify-center shadow-glow-primary">
+                <MessageCircle className="w-9 h-9 text-primary-foreground" strokeWidth={2.2} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-foreground">{t('noConversations')}</p>
+              <p className="text-xs text-muted-foreground">Start your first vibe</p>
+            </div>
+            <Button onClick={() => navigate('/friends')} className="rounded-2xl gradient-primary text-primary-foreground shadow-glow-primary px-5 h-10 press border-0">
               {t('addFriendsToStart')}
             </Button>
           </div>
         ) : (
-          filtered.map(conv => {
-            const name = conv.type === 'direct'
-              ? (conv.other_user?.display_name || conv.other_user?.username || 'Unknown')
-              : (conv.name || 'Group');
-            const isOnline = conv.type === 'direct' && conv.other_user?.is_online;
-            const avatar = conv.type === 'direct' ? conv.other_user?.avatar_url : null;
+          <div className="pb-24">
+            {filtered.map((conv, idx) => {
+              const name = conv.type === 'direct'
+                ? (conv.other_user?.display_name || conv.other_user?.username || 'Unknown')
+                : (conv.name || 'Group');
+              const isOnline = conv.type === 'direct' && conv.other_user?.is_online;
+              const avatar = conv.type === 'direct' ? conv.other_user?.avatar_url : null;
+              const isGroup = conv.type === 'group';
 
-            return (
-              <button
-                key={conv.id}
-                onClick={() => navigate(`/chat/${conv.id}`)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/60 active:bg-secondary transition-colors text-left rtl:text-right"
-              >
-                <div className="relative flex-shrink-0">
-                  {avatar ? (
-                    <img src={avatar} alt={name} className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm">
-                      {getInitials(name)}
-                    </div>
-                  )}
-                  {isOnline && (
-                    <div className="absolute bottom-0 right-0 rtl:right-auto rtl:left-0 w-3.5 h-3.5 rounded-full bg-online border-2 border-card" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-foreground truncate">{name}</span>
-                    {conv.last_message && (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: false })}
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => navigate(`/chat/${conv.id}`)}
+                  style={{ animationDelay: `${Math.min(idx, 12) * 35}ms` }}
+                  className="stagger-item w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/50 active:bg-secondary/80 transition-colors text-left rtl:text-right group"
+                >
+                  <div className="relative flex-shrink-0">
+                    {isOnline && (
+                      <div className="absolute -inset-1 rounded-full bg-online/30 blur-md opacity-60" />
+                    )}
+                    {avatar ? (
+                      <img src={avatar} alt={name} className="relative w-12 h-12 rounded-full object-cover ring-2 ring-card group-hover:ring-accent/30 transition-all" />
+                    ) : (
+                      <div className={cn(
+                        "relative w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold ring-2 ring-card group-hover:ring-accent/30 transition-all",
+                        isGroup
+                          ? "gradient-primary text-primary-foreground"
+                          : "bg-accent/15 text-accent"
+                      )}>
+                        {isGroup ? <UsersRound className="w-5 h-5" /> : getInitials(name)}
+                      </div>
+                    )}
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 rtl:right-auto rtl:left-0 block">
+                        <span className="relative block w-3.5 h-3.5 rounded-full bg-online border-2 border-card online-pulse" />
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {conv.last_message?.content || t('noMessagesYet')}
-                  </p>
-                </div>
-              </button>
-            );
-          })
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-foreground truncate tracking-tight">{name}</span>
+                      {conv.last_message && (
+                        <span className="text-[11px] font-medium text-muted-foreground flex-shrink-0 tabular-nums">
+                          {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: false })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate mt-0.5">
+                      {conv.last_message?.content || (
+                        <span className="italic opacity-70">{t('noMessagesYet')}</span>
+                      )}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {/* Floating AI button */}
@@ -317,7 +351,7 @@ const ChatListPage = () => {
           <TooltipTrigger asChild>
             <button
               onClick={() => navigate('/ai')}
-              className="fixed bottom-36 right-5 rtl:right-auto rtl:left-5 w-12 h-12 rounded-full bg-gradient-to-br from-accent to-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-90 hover:scale-105 transition-transform z-10"
+              className="fixed bottom-36 right-5 rtl:right-auto rtl:left-5 w-12 h-12 rounded-2xl gradient-accent text-accent-foreground shadow-glow-accent flex items-center justify-center press hover:scale-105 transition-transform z-20"
               aria-label="Vibe AI"
             >
               <Sparkles className="w-5 h-5" />
@@ -331,10 +365,10 @@ const ChatListPage = () => {
           <TooltipTrigger asChild>
             <button
               onClick={() => navigate('/friends')}
-              className="fixed bottom-20 right-5 rtl:right-auto rtl:left-5 w-14 h-14 rounded-full gradient-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-90 hover:scale-105 transition-transform z-10"
+              className="fixed bottom-20 right-5 rtl:right-auto rtl:left-5 w-14 h-14 rounded-2xl gradient-primary text-primary-foreground flex items-center justify-center press hover:scale-105 transition-transform z-20 fab-breathe"
               aria-label={t('newChatTooltip')}
             >
-              <Plus className="w-6 h-6" />
+              <Plus className="w-6 h-6" strokeWidth={2.4} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="left">{t('newChatTooltip')}</TooltipContent>
