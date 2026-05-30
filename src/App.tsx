@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import IncomingCallListener from "@/components/chat/IncomingCallListener";
+import NotificationsListener from "@/components/NotificationsListener";
 import Index from "./pages/Index.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
 import ChatPage from "./pages/ChatPage.tsx";
