@@ -46,6 +46,7 @@ const CommunityServerPage = () => {
   const [perms, setPerms] = useState({ manageChannels: false, manageRoles: false, isOwner: false });
   const [newChannelName, setNewChannelName] = useState('');
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
