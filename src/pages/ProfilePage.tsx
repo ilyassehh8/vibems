@@ -50,16 +50,16 @@ const ProfilePage = () => {
     if (!user) return;
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `avatars/${user.id}.${ext}`;
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // RLS requires first folder = auth.uid()
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(path, file, { upsert: true });
+        .upload(path, file, { upsert: true, contentType: file.type || undefined });
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
-      const url = `${data.publicUrl}?t=${Date.now()}`;
-      setAvatarUrl(url);
+      setAvatarUrl(data.publicUrl);
       toast.success(t('avatarUploaded'));
     } catch (err: any) {
       toast.error(err.message || 'Upload failed');
