@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark' | 'auto';
+type ResolvedTheme = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
+  setTheme: (t: Theme) => void;
   toggleTheme: () => void;
 }
 
@@ -15,21 +18,40 @@ export const useTheme = () => {
   return ctx;
 };
 
+const getSystem = (): ResolvedTheme =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark' : 'light';
+
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('vibe-theme');
-    return (saved as Theme) || 'light';
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const saved = localStorage.getItem('vibe-theme') as Theme | null;
+    return saved || 'auto';
   });
+  const [resolvedTheme, setResolved] = useState<ResolvedTheme>(() =>
+    theme === 'auto' ? getSystem() : (theme as ResolvedTheme)
+  );
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    const apply = () => {
+      const next = theme === 'auto' ? getSystem() : (theme as ResolvedTheme);
+      setResolved(next);
+      document.documentElement.classList.toggle('dark', next === 'dark');
+    };
+    apply();
     localStorage.setItem('vibe-theme', theme);
+    if (theme === 'auto') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
+    }
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
+  const setTheme = (t: Theme) => setThemeState(t);
+  const toggleTheme = () =>
+    setThemeState(prev => (prev === 'dark' ? 'light' : prev === 'light' ? 'auto' : 'dark'));
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

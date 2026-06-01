@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Hash, Plus, Settings, Send, Users, LogOut, Shield } from 'lucide-react';
+import { ArrowLeft, Hash, Plus, Settings, Send, Users, LogOut, Shield, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,6 +46,7 @@ const CommunityServerPage = () => {
   const [perms, setPerms] = useState({ manageChannels: false, manageRoles: false, isOwner: false });
   const [newChannelName, setNewChannelName] = useState('');
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -186,89 +187,111 @@ const CommunityServerPage = () => {
     );
   }
 
+  const ChannelsSidebar = (
+    <div className="flex flex-col h-full bg-card">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <button onClick={() => navigate('/communities')} className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity">
+          <ArrowLeft className="w-4 h-4 shrink-0" />
+          <span className="font-semibold truncate text-sm bg-clip-text text-transparent bg-[image:var(--gradient-primary)]">{server?.name}</span>
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
+        <div className="flex items-center justify-between px-2 py-1 text-xs uppercase font-semibold text-muted-foreground tracking-wider">
+          <span>{t('textChannels')}</span>
+          {perms.manageChannels && (
+            <Dialog open={channelDialogOpen} onOpenChange={setChannelDialogOpen}>
+              <DialogTrigger asChild>
+                <button className="hover:text-foreground transition-colors hover:scale-110"><Plus className="w-3.5 h-3.5" /></button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>{t('createChannel')}</DialogTitle></DialogHeader>
+                <Input
+                  value={newChannelName}
+                  onChange={e => setNewChannelName(e.target.value)}
+                  placeholder={t('channelName')}
+                  onKeyDown={e => e.key === 'Enter' && createChannel()}
+                />
+                <DialogFooter>
+                  <Button onClick={createChannel} disabled={!newChannelName.trim()}>{t('create')}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+        {channels.map(c => (
+          <button
+            key={c.id}
+            onClick={() => { setActiveChannel(c); setMobileSidebarOpen(false); }}
+            className={cn(
+              'w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all duration-200',
+              activeChannel?.id === c.id
+                ? 'bg-[image:var(--gradient-primary)] text-primary-foreground font-medium shadow-sm'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-x-1'
+            )}
+          >
+            <Hash className="w-4 h-4 shrink-0" />
+            <span className="truncate">{c.name}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="p-2 border-t border-border flex gap-1">
+        {perms.manageRoles && (
+          <Button variant="ghost" size="sm" className="flex-1" onClick={() => navigate(`/communities/${serverId}/roles`)}>
+            <Shield className="w-4 h-4 mr-1" />{t('roles')}
+          </Button>
+        )}
+        {!perms.isOwner && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="flex-1 text-destructive hover:text-destructive">
+                <LogOut className="w-4 h-4 mr-1" />{t('leaveCommunity')}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('confirmLeave')}</AlertDialogTitle>
+                <AlertDialogDescription>{server?.name}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={leaveServer}>{t('leaveCommunity')}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex h-screen bg-background">
-      {/* Channels sidebar */}
-      <aside className="w-60 border-r border-border bg-card flex flex-col">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <button onClick={() => navigate('/communities')} className="flex items-center gap-2 min-w-0 flex-1">
-            <ArrowLeft className="w-4 h-4 shrink-0" />
-            <span className="font-semibold truncate text-sm">{server?.name}</span>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2">
-          <div className="flex items-center justify-between px-2 py-1 text-xs uppercase font-semibold text-muted-foreground">
-            <span>{t('textChannels')}</span>
-            {perms.manageChannels && (
-              <Dialog open={channelDialogOpen} onOpenChange={setChannelDialogOpen}>
-                <DialogTrigger asChild>
-                  <button className="hover:text-foreground"><Plus className="w-3.5 h-3.5" /></button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>{t('createChannel')}</DialogTitle></DialogHeader>
-                  <Input
-                    value={newChannelName}
-                    onChange={e => setNewChannelName(e.target.value)}
-                    placeholder={t('channelName')}
-                    onKeyDown={e => e.key === 'Enter' && createChannel()}
-                  />
-                  <DialogFooter>
-                    <Button onClick={createChannel} disabled={!newChannelName.trim()}>{t('create')}</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-          {channels.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setActiveChannel(c)}
-              className={cn(
-                'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                activeChannel?.id === c.id
-                  ? 'bg-accent/15 text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Hash className="w-4 h-4 shrink-0" />
-              <span className="truncate">{c.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="p-2 border-t border-border flex gap-1">
-          {perms.manageRoles && (
-            <Button variant="ghost" size="sm" className="flex-1" onClick={() => navigate(`/communities/${serverId}/roles`)}>
-              <Shield className="w-4 h-4 mr-1" />{t('roles')}
-            </Button>
-          )}
-          {!perms.isOwner && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex-1 text-destructive">
-                  <LogOut className="w-4 h-4 mr-1" />{t('leaveCommunity')}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('confirmLeave')}</AlertDialogTitle>
-                  <AlertDialogDescription>{server?.name}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={leaveServer}>{t('leaveCommunity')}</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-60 border-r border-border flex-col">
+        {ChannelsSidebar}
       </aside>
+
+      {/* Mobile sidebar (sheet) */}
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-72">
+          {ChannelsSidebar}
+        </SheetContent>
+      </Sheet>
 
       {/* Channel chat */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60 backdrop-blur-md">
+        <header className="flex items-center justify-between px-3 md:px-4 py-3 border-b border-border bg-card/70 backdrop-blur-md">
           <div className="flex items-center gap-2 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden h-9 w-9"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open channels"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
             <Hash className="w-5 h-5 text-muted-foreground" />
             <h2 className="font-semibold truncate">{activeChannel?.name || '—'}</h2>
           </div>
@@ -280,8 +303,8 @@ const CommunityServerPage = () => {
               <SheetHeader><SheetTitle>{t('membersList')} ({members.length})</SheetTitle></SheetHeader>
               <div className="mt-4 space-y-2">
                 {members.map(m => (
-                  <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground text-sm font-semibold">
+                  <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
+                    <div className="w-9 h-9 rounded-full bg-[image:var(--gradient-primary)] flex items-center justify-center text-primary-foreground text-sm font-semibold overflow-hidden">
                       {m.profile?.avatar_url
                         ? <img src={m.profile.avatar_url} className="w-full h-full rounded-full object-cover" alt="" />
                         : (m.profile?.display_name || m.profile?.username || '?').charAt(0).toUpperCase()}
